@@ -57,7 +57,7 @@ Official implementation evidence:
 - SpeechRecognition has limited browser coverage; some implementations use remote processing and fail offline. [MDN SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
 - Arbitrary HTML picture-in-picture is documented as a desktop Chrome feature; ordinary video picture-in-picture also has limited availability. These sources do not establish mobile cross-app teleprompter parity. [Chrome document PiP](https://developer.chrome.com/docs/web-platform/document-picture-in-picture), [MDN PiP](https://developer.mozilla.org/en-US/docs/Web/API/Picture-in-Picture_API)
 
-## Pocket Prompter implementation status (1.2)
+## Pocket Prompter implementation status (1.3)
 
 The app is published at https://williamob6002-ctrl.github.io/pocket-prompter/. All included functions are free; no subscription, account or paid API is involved.
 
@@ -70,11 +70,12 @@ The app is published at https://williamob6002-ctrl.github.io/pocket-prompter/. A
 | Media export | Implemented: video sharing/download, trimmed WAV audio, SRT | Physical Photos, Files and school-submission workflows remain to be checked on the target iPhone. |
 | Local video editing | Implemented: trim, crop/size, music, logo, text title, styled captions, green/blue-screen background replacement, frame preview | Runs in real time on device; no multi-track timeline or automatic subject segmentation. Large videos/effects depend on device resources. |
 | Remote controls | Keyboard and clickers that send supported keyboard keys | Apple Watch, hardware volume buttons and proprietary controllers need native integrations. A dedicated network remote is not implemented. |
-| Automatic transcription / AI script and eye-contact tools | Not implemented | Deferred from this test build. Automatic transcription is feasible with a separate local model; it is not a standard browser API and needs a substantial download plus device, accuracy and privacy validation. AI tools similarly require separate models or services. No paid service is silently substituted. |
+| Automatic transcription | Implemented as an optional English-only local model; editable timed captions, offline after explicit ~66 MB download | Tested in desktop Chromium/WebKit. Words/timings can be wrong; child speech, iPhone memory/speed and interruption behavior remain unverified. Source under 100 MB/15 minutes; up to 10 minutes per selection. |
+| AI script and eye-contact tools | Not implemented | These require additional models or services and separate device/quality validation. They are missing features, not a blanket claim of web impossibility. No paid service is silently substituted. |
 | Floating text over other iPhone apps | Not implemented | A Home Screen web app has no general-purpose permission to draw arbitrary text over other apps. |
 | Cloud projects/collaboration | Not implemented | Would introduce a server/account and ongoing storage/service dependency. Local backups and file sharing cover transfer between devices. |
 
-“Feasible extras” here means features that can run in this installable app with bundled code and local device APIs. The excluded model/server/native integrations are listed explicitly; this is not a claim of complete parity with every advertised feature or every paid-app subscription tier. See VERIFICATION.md for the actual evidence and remaining checks.
+Included extras run locally with bundled code, device APIs or explicitly downloaded models. Remaining model, server and native integrations are listed separately; this is not a claim of complete parity with every advertised feature or every paid-app subscription tier. See VERIFICATION.md for the actual evidence and remaining checks.
 
 ## Native iPhone distribution
 

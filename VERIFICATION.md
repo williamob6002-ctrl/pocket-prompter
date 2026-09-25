@@ -1,6 +1,16 @@
-# Verification — Pocket Prompter 1.2.0
+# Verification — Pocket Prompter 1.3.0
 
 Checked 25 September 2026. This record distinguishes implemented features, tested browser behavior, and target-device work still needed.
+
+## Version 1.3 checks
+
+- Optional English automatic captions use a pinned, self-hosted 66,061,686-byte model/runtime pack. The normal offline installation excludes this pack. Each optional asset is size- and SHA-256-checked before caching; missing tools require an explicit download. All observed model/runtime HTTP requests remained on the app origin and used GET; there is no audio-upload endpoint or remote-model fallback.
+- Actual human speech produced matching words and timed captions in desktop Chromium and WebKit, then repeated after a fresh reload while the origin refused every request. Independent synthetic school-speech checks included silence, background noise, leading pauses and chunk boundaries. Recognition and timing errors occurred, so captions remain editable drafts; this is not a child-speech accuracy guarantee.
+- The isolated main-thread runtime passed 22 checks across the two browsers covering cancel/retry, disposal/reuse, partial-download recovery, missing offline assets and removing tools while preserving unrelated app caches. An earlier worker candidate crashed WebKit during teardown and is excluded from the shipped files.
+- Responsiveness measurement on this Mac found individual encoder steps blocking the UI for about 1.0–1.3 seconds. Cancellation runs at the next model yield; it is not instantaneous. No iPhone speed, thermal or memory claim follows from desktop timings.
+- Final app UI acceptance passed eight cases in each browser: assets remain opt-in; download cancel/retry; selected video speech becomes a dirty caption draft while outside cues remain; Keep/close/reload persists; cancelled recognition preserves previous text; fresh offline reload/transcription works; silent-video errors preserve the draft; removing tools leaves unrelated caches intact and missing offline tools fail clearly. WebKit used an isolated origin refusing every request because its automation offline switch independently fails even without ASR.
+- Four delayed-metadata checks across the two browsers confirmed that typed end times and the Set end button survive late video metadata. Caption changes invalidate an older appearance preview. A cleanup-state race was fixed so the processing indicator stays visible until model-cache controls have refreshed.
+- Actual MP4 audio preparation passed both browsers: mono 16 kHz, exact selected duration/source offset and preserved leading silence. Invalid source sizes/durations and oversized selections reject before opening an audio context; cancellation/retry preserves existing captions.
 
 ## Version 1.2 checks
 
@@ -69,4 +79,4 @@ Version 1.1 bundles 210 offline assets, including the new processing modules and
 
 ## Published delivery
 
-The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.2 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.
+The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.3 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.

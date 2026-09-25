@@ -3,6 +3,7 @@ import {processVideo, toSrt, parseSrt, trimCaptions, getVideoProcessingSupport} 
 import {VoiceFollower} from './voice-follow.js';
 import {exportAudio} from './audio-export.js';
 import {AudioMonitor} from './audio-monitor.js';
+import {setupAutomaticCaptions} from './automatic-captions.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -28,8 +29,8 @@ let stream=null,recorder=null,recordInfo=null,chunkQueue=Promise.resolve(),recor
 let recordingStarting=false,recordSegmentActive=false;
 function accumulateRecording(){if(recordSegmentActive){recordAccum+=(performance.now()-recordStarted)/1000;recordSegmentActive=false;}}
 let stopPromise=null,resolveStop=null,recordStarted=0,recordAccum=0,sessionElapsed=0,lastFrame=0,scrollPosition=0,wakeLock=null,voiceFollower=null;
-let selectedTake=null,selectedBlob=null,takeURL=null,cameraRequest=0,captionDirty=false;
-let exportController=null,previewTrimEnd=null,finishAt=0;
+let selectedTake=null,selectedBlob=null,takeURL=null,cameraRequest=0,captionDirty=false,trimEndEdited=false;
+let exportController=null,previewTrimEnd=null,finishAt=0,audioExportBusy=false;
 let soundDetected=false,monitorReady=false;
 function setTextIfChanged(selector,text){const element=$(selector);if(element.textContent!==text)element.textContent=text;}
 const audioMonitor=new AudioMonitor({
@@ -255,27 +256,28 @@ async function renderTakes(){
   }catch{const p=document.createElement('p');p.className='notice';p.textContent='Recordings storage is unavailable. Check available device storage and use normal browsing, rather than private browsing.';container.append(p);}
 }
 async function openTake(take,blob){
-  try{selectedTake=take;selectedBlob=blob||await takeBlob(take);if(takeURL)URL.revokeObjectURL(takeURL);takeURL=URL.createObjectURL(selectedBlob);$('#take-player').src=takeURL;$('#take-title').textContent=take.title;$('#take-meta').textContent=take.warning||`${clock(take.duration)} · ${(selectedBlob.size/1024/1024).toFixed(1)} MB · ${take.width||'?'}×${take.height||'?'} · ${selectedBlob.type.includes('mp4')?'MP4':'WebM'}${take.status==='recording'?' · Interrupted recording; playback may be incomplete':''}`;$('#trim-start').value=0;$('#trim-end').value=(take.duration||0).toFixed(1);$('#caption-text').value=take.captions?toSrt(take.captions):'';captionDirty=false;$('#caption-save-state').textContent=take.captions?.length?'Captions saved with this take.':'Caption edits can be kept with this take.';$('#burn-captions').checked=false;$('#video-aspect').value='original';$('#video-logo').value='';$('#video-music').value='';resetEffects();restoreCaptionStyle(take.captionStyle);$('#edit-take').open=false;$('#export-progress').hidden=true;previewTrimEnd=null;$('#take-dialog').showModal();}
+  try{selectedTake=take;selectedBlob=blob||await takeBlob(take);if(takeURL)URL.revokeObjectURL(takeURL);takeURL=URL.createObjectURL(selectedBlob);$('#take-player').src=takeURL;$('#take-title').textContent=take.title;$('#take-meta').textContent=take.warning||`${clock(take.duration)} · ${(selectedBlob.size/1024/1024).toFixed(1)} MB · ${take.width||'?'}×${take.height||'?'} · ${selectedBlob.type.includes('mp4')?'MP4':'WebM'}${take.status==='recording'?' · Interrupted recording; playback may be incomplete':''}`;$('#trim-start').value=0;trimEndEdited=false;$('#trim-end').value=(take.duration||0).toFixed(1);$('#caption-text').value=take.captions?toSrt(take.captions):'';captionDirty=false;$('#caption-save-state').textContent=take.captions?.length?'Captions saved with this take.':'Caption edits can be kept with this take.';$('#burn-captions').checked=false;$('#video-aspect').value='original';$('#video-logo').value='';$('#video-music').value='';resetEffects();restoreCaptionStyle(take.captionStyle);$('#edit-take').open=false;$('#export-progress').hidden=true;previewTrimEnd=null;$('#take-dialog').showModal();automaticCaptions.refresh();}
   catch(e){message('Could not open take',`${e.message}\nAn interrupted recording may not have saved enough data. You can remove empty takes from the list.`);}
 }
-function canLeaveTake(){return !captionDirty||confirm('Leave without keeping your caption edits? Use Keep captions with this take to save them.');}
+function canLeaveTake(){if(automaticCaptions.isBusy()){toast('Use Cancel captions before closing.');return false;}return !captionDirty||confirm('Leave without keeping your caption edits? Use Keep captions with this take to save them.');}
 $('#take-dialog .dialog-heading').addEventListener('submit',e=>{if(!canLeaveTake())e.preventDefault();});
 $('#take-dialog').addEventListener('cancel',e=>{if(exportController){e.preventDefault();toast('Use Cancel processing before closing.');}else if(!canLeaveTake())e.preventDefault();});
-$('#take-dialog').addEventListener('close',()=>{exportController?.abort();$('#take-player').pause();$('#take-player').removeAttribute('src');$('#take-player').load();if(takeURL){URL.revokeObjectURL(takeURL);takeURL=null;}selectedBlob=null;selectedTake=null;if(activeView==='takes')renderTakes();});
+$('#take-dialog').addEventListener('close',()=>{automaticCaptions.dispose();exportController?.abort();$('#take-player').pause();$('#take-player').removeAttribute('src');$('#take-player').load();if(takeURL){URL.revokeObjectURL(takeURL);takeURL=null;}selectedBlob=null;selectedTake=null;if(activeView==='takes')renderTakes();});
 $('#share-take').onclick=async()=>{if(!selectedBlob)return;try{const shared=await shareFile(selectedBlob,`${fileName(selectedTake.title)}.${selectedBlob.type.includes('mp4')?'mp4':'webm'}`,selectedTake.title);if(!shared)toast('Video download started');}catch(e){if(e.name!=='AbortError')message('Could not share video',`${e.message}\nTry the Download button instead.`);}};
 $('#download-take').onclick=()=>{if(selectedBlob)download(selectedBlob,`${fileName(selectedTake.title)}.${selectedBlob.type.includes('mp4')?'mp4':'webm'}`);};
 $('#delete-take').onclick=async()=>{if(!selectedTake||!confirm('Delete this take from this device? Saved copies in Photos or Files will remain.'))return;try{await deleteTake(selectedTake.id);$('#take-dialog').close();toast('Take deleted');}catch(e){message('Could not delete',e.message);}};
 
-$('#take-player').addEventListener('loadedmetadata',()=>{const duration=$('#take-player').duration;if(Number.isFinite(duration)&&duration>0){$('#trim-end').value=duration.toFixed(2);$('#trim-start').max=duration;$('#trim-end').max=duration;}});
+$('#take-player').addEventListener('loadedmetadata',()=>{const duration=$('#take-player').duration;if(Number.isFinite(duration)&&duration>0){if(!trimEndEdited)$('#trim-end').value=duration.toFixed(2);$('#trim-start').max=duration;$('#trim-end').max=duration;}});
 $('#take-player').addEventListener('timeupdate',()=>{if(previewTrimEnd!==null&&$('#take-player').currentTime>=previewTrimEnd){$('#take-player').pause();previewTrimEnd=null;}});
 $('#set-trim-start').onclick=()=>$('#trim-start').value=$('#take-player').currentTime.toFixed(2);
-$('#set-trim-end').onclick=()=>$('#trim-end').value=$('#take-player').currentTime.toFixed(2);
+for(const event of ['input','change'])$('#trim-end').addEventListener(event,()=>{trimEndEdited=true;});
+$('#set-trim-end').onclick=()=>{trimEndEdited=true;$('#trim-end').value=$('#take-player').currentTime.toFixed(2);};
 function trimRange(){const start=Number($('#trim-start').value),end=Number($('#trim-end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)throw new Error('End time must be later than the start time.');const duration=$('#take-player').duration;if(Number.isFinite(duration)&&(start>=duration||end>duration+.05))throw new Error('Choose start and end times within this take.');return {start,end:Math.min(end,Number.isFinite(duration)?duration:end)};}
 $('#preview-trim').onclick=async()=>{try{const {start,end}=trimRange();$('#take-player').currentTime=start;previewTrimEnd=end;await $('#take-player').play();}catch(e){message('Check the selection',e.message);}};
 $('#draft-captions').onclick=()=>{if(!selectedTake?.script){message('No script for this take','Import an SRT file or enter captions and timings below.');return;}if($('#caption-text').value&&!confirm('Replace the current captions with a script draft?'))return;const words=selectedTake.script.split(/\s+/u).filter(Boolean),duration=selectedTake.duration||Number($('#trim-end').value);if(!(duration>0))return;const captions=[];for(let i=0;i<words.length;i+=8)captions.push({start:i/words.length*duration,end:Math.min(i+8,words.length)/words.length*duration,text:words.slice(i,i+8).join(' ')});$('#caption-text').value=toSrt(captions);captionChanged();toast('Estimated captions added. Check every word and timing.');};
 $('#import-captions').onclick=()=>$('#captions-file').click();
 $('#captions-file').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>2*1024*1024)throw new Error('Choose an SRT file under 2 MB.');const text=await file.text();const captions=parseSrt(text);$('#caption-text').value=toSrt(captions);captionChanged();toast(`${captions.length} captions imported`);}catch(e){message('Could not import captions',e.message);}};
-function captionChanged(){captionDirty=true;$('#caption-save-state').textContent='Caption changes not yet saved.';}
+function captionChanged(){captionDirty=true;$('#effects-preview').hidden=true;$('#caption-save-state').textContent='Caption changes not yet saved.';}
 $('#caption-text').addEventListener('input',captionChanged);
 $('#save-captions').onclick=async()=>{
   if(!selectedTake)return;const id=selectedTake.id,text=$('#caption-text').value,captionStyle=effectsOptions().captionStyle,button=$('#save-captions');button.disabled=true;
@@ -284,7 +286,7 @@ $('#save-captions').onclick=async()=>{
   finally{button.disabled=false;}
 };
 $('#export-captions').onclick=()=>{try{const captions=parseSrt($('#caption-text').value);if(!captions.length)throw new Error('Add captions first.');download(new Blob([toSrt(captions,trimRange())],{type:'text/plain;charset=utf-8'}),`${fileName(selectedTake.title)}.srt`);}catch(e){message('Check the captions',e.message);}};
-$('#export-audio').onclick=async()=>{if(!selectedBlob)return;const take={...selectedTake},blob=selectedBlob;const button=$('#export-audio');button.disabled=true;try{const range=trimRange();toast('Preparing audio…');const audio=await exportAudio(blob,range);download(audio,`${fileName(take.title)}.wav`);toast('Audio download ready');}catch(e){message('Could not export audio',e.message);}finally{button.disabled=false;}};
+$('#export-audio').onclick=async()=>{if(!selectedBlob||exportController||automaticCaptions.isBusy()||audioExportBusy)return;const take={...selectedTake},blob=selectedBlob;const button=$('#export-audio');button.disabled=true;audioExportBusy=true;automaticCaptions.refresh();try{const range=trimRange();toast('Preparing audio…');const audio=await exportAudio(blob,range);download(audio,`${fileName(take.title)}.wav`);toast('Audio download ready');}catch(e){message('Could not export audio',e.message);}finally{button.disabled=false;audioExportBusy=false;automaticCaptions.refresh();}};
 function resetEffects(){
   for(const [id,value]of Object.entries({'overlay-title':'','title-position':'top','title-size':'medium','title-color':'#ffffff','chroma-key':'off','chroma-threshold':'0.20','chroma-color':'#163b83','chroma-image':'','caption-size':'medium','caption-color':'#ffffff','caption-position':'bottom','edit-size':'1920'}))$('#'+id).value=value;
   $('#caption-background').checked=true;$('#effects-preview').hidden=true;
@@ -313,13 +315,13 @@ $('#preview-effects').onclick=async()=>{
 };
 $('#edit-take').addEventListener('input',()=>{$('#effects-preview').hidden=true;});
 let exportDisabledStates=new Map();
-function setExportBusy(busy){
-  if(busy){for(const element of $$('#take-dialog button, #take-dialog input, #take-dialog select, #take-dialog textarea'))if(element.id!=='cancel-export'){exportDisabledStates.set(element,element.disabled);element.disabled=true;}$('#take-player').controls=false;}
+function setExportBusy(busy,cancelId='cancel-export'){
+  if(busy){for(const element of $$('#take-dialog button, #take-dialog input, #take-dialog select, #take-dialog textarea'))if(element.id!==cancelId){exportDisabledStates.set(element,element.disabled);element.disabled=true;}$('#take-player').controls=false;}
   else{for(const [element,disabled]of exportDisabledStates)element.disabled=disabled;exportDisabledStates.clear();$('#take-player').controls=true;}
 }
 $('#cancel-export').onclick=()=>exportController?.abort();
 $('#export-edit').onclick=async()=>{
-  if(!selectedBlob||exportController)return;const take={...selectedTake};
+  if(!selectedBlob||exportController||audioExportBusy||automaticCaptions.isBusy())return;const take={...selectedTake};
   try{
     const range=trimRange();const captions=$('#burn-captions').checked?parseSrt($('#caption-text').value):[];if($('#burn-captions').checked&&!captions.length)throw new Error('Add captions or turn off “Add these captions to the video”.');
     if(!getVideoProcessingSupport().supported)throw new Error('This browser cannot create edited videos. You can still download the original and save SRT captions. Try an up-to-date Safari.');
@@ -330,8 +332,13 @@ $('#export-edit').onclick=async()=>{
     try{await saveChunk(edited.id,0,result.blob);await saveTake(edited);}catch{edited.warning='Device storage could not keep this edited take. Save or share it now.';}
     exportController=null;await openTake(edited,result.blob);toast('Edited copy ready. Original kept.');
   }catch(e){if(e.code!=='ABORTED'&&e.name!=='AbortError')message('Could not create edited copy',e.message);else toast('Processing cancelled. Original kept.');}
-  finally{exportController=null;setExportBusy(false);$('#export-progress').hidden=true;}
+  finally{exportController=null;setExportBusy(false);$('#export-progress').hidden=true;automaticCaptions.refresh();}
 };
+
+const automaticCaptions=setupAutomaticCaptions({
+  getTake:()=>selectedTake&&{id:selectedTake.id,blob:selectedBlob,duration:Number.isFinite($('#take-player').duration)&&$('#take-player').duration>0?$('#take-player').duration:selectedTake.duration},
+  getRange:trimRange,onCaptions:captionChanged,setBusy:setExportBusy,onError:message,canStart:()=>!exportController&&!audioExportBusy
+});
 
 async function setupOffline(){
   if(!('serviceWorker'in navigator)){$('#offline-state').textContent='Offline installation is unavailable in this browser.';return;}
