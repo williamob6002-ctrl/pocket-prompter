@@ -1,3 +1,4 @@
+import {createCompositor} from './visual-effects.js';
 /** Local, real-time video trimming and burned-in captions. No network or dependencies. */
 export class VideoProcessingError extends Error {
   constructor(code, message, cause) {
@@ -24,8 +25,9 @@ export function getVideoProcessingSupport(scope = globalThis) {
   if (!scope.HTMLCanvasElement?.prototype?.captureStream) missing.push('canvas.captureStream');
   if (!scope.MediaRecorder) missing.push('MediaRecorder');
   if (!scope.MediaStream) missing.push('MediaStream');
+  if (!scope.HTMLVideoElement?.prototype?.requestVideoFrameCallback) missing.push('decoded video frame callbacks');
   const Audio = scope.AudioContext || scope.webkitAudioContext;
-  if (!Audio?.prototype?.createMediaElementSource || !Audio?.prototype?.createMediaStreamDestination) missing.push('Web Audio media routing');
+  if (!Audio?.prototype?.decodeAudioData || !Audio?.prototype?.createBufferSource || !Audio?.prototype?.createMediaStreamDestination) missing.push('Web Audio decoding and recording');
   const formats = scope.MediaRecorder?.isTypeSupported
     ? FORMATS.filter(type => { try { return scope.MediaRecorder.isTypeSupported(type); } catch { return false; } })
     : [];
@@ -136,49 +138,123 @@ async function inspectOutput(blob, signal) {
   }
 }
 
-function wrapText(context, text, maxWidth) {
-  const lines = [];
-  for (const paragraph of text.split('\n')) {
-    let line = '';
-    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (context.measureText(candidate).width <= maxWidth) { line = candidate; continue; }
-      if (line) lines.push(line);
-      line = '';
-      // Break a long URL or unspaced word rather than allowing it off-screen.
-      for (const char of word) {
-        if (line && context.measureText(line + char).width > maxWidth) { lines.push(line); line = char; }
-        else line += char;
+// Identify genuinely silent MP4/MOV/WebM inputs before decoding. A decode failure
+// must never be interpreted as permission to discard an existing soundtrack.
+function containerHasAudio(buffer, timeline = {}) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const text = (offset, length) => String.fromCharCode(...bytes.subarray(offset, offset + length));
+  function boxes(begin, end) {
+    const result = [];
+    for (let offset = begin; offset + 8 <= end;) {
+      let size = view.getUint32(offset), header = 8;
+      if (size === 1) {
+        if (offset + 16 > end) return null;
+        size = view.getUint32(offset + 8) * 4294967296 + view.getUint32(offset + 12); header = 16;
+      } else if (size === 0) size = end - offset;
+      if (!Number.isSafeInteger(size) || size < header || offset + size > end) return null;
+      result.push({ type: text(offset + 4, 4), begin: offset + header, end: offset + size });
+      offset += size;
+    }
+    return result;
+  }
+  const top = boxes(0, bytes.length);
+  const moov = top?.find(box => box.type === 'moov');
+  if (moov) {
+    const movieBoxes = boxes(moov.begin, moov.end);
+    const tracks = movieBoxes?.filter(box => box.type === 'trak');
+    if (!tracks?.length) return null;
+    let unknown = false;
+    for (const track of tracks) {
+      const media = boxes(track.begin, track.end)?.find(box => box.type === 'mdia');
+      const handler = media && boxes(media.begin, media.end)?.find(box => box.type === 'hdlr');
+      if (!handler || handler.end - handler.begin < 12) { unknown = true; continue; }
+      if (text(handler.begin + 8, 4) === 'soun') {
+        const edits = boxes(track.begin, track.end)?.find(box => box.type === 'edts');
+        const editList = edits && boxes(edits.begin, edits.end)?.find(box => box.type === 'elst');
+        timeline.leadIn = 0;
+        if (editList) {
+          const movieHeader = movieBoxes?.find(box => box.type === 'mvhd');
+          const clockOffset = movieHeader && (bytes[movieHeader.begin] === 1 ? 20 : 12);
+          if (!movieHeader || movieHeader.begin + clockOffset + 4 > movieHeader.end || editList.begin + 8 > editList.end) throw fail('UNSUPPORTED_FORMAT', 'This video has an unreadable audio edit timeline.');
+          const timescale = view.getUint32(movieHeader.begin + clockOffset);
+          const version = bytes[editList.begin], count = view.getUint32(editList.begin + 4);
+          const entrySize = version === 0 ? 12 : version === 1 ? 20 : 0;
+          if (!timescale || !entrySize || editList.begin + 8 + count * entrySize > editList.end) throw fail('UNSUPPORTED_FORMAT', 'This video has an unsupported audio edit timeline.');
+          let contentSeen = false;
+          for (let i = 0; i < count; i++) {
+            const offset = editList.begin + 8 + i * entrySize;
+            const duration = version === 0 ? view.getUint32(offset) : view.getUint32(offset) * 4294967296 + view.getUint32(offset + 4);
+            const mediaOffset = offset + (version === 0 ? 4 : 8);
+            const mediaTime = version === 0 ? view.getInt32(mediaOffset) : view.getInt32(mediaOffset) * 4294967296 + view.getUint32(mediaOffset + 4);
+            const rateOffset = offset + entrySize - 4;
+            if (!Number.isSafeInteger(duration) || !Number.isSafeInteger(mediaTime) || view.getInt16(rateOffset) !== 1 || view.getInt16(rateOffset + 2) !== 0 || contentSeen) throw fail('UNSUPPORTED_FORMAT', 'Videos with complex audio edit lists cannot be edited in this browser.');
+            if (mediaTime === -1) timeline.leadIn += duration / timescale;
+            else { if (mediaTime < 0) throw fail('UNSUPPORTED_FORMAT', 'This audio timeline is unsupported.'); contentSeen = true; }
+          }
+          if (!contentSeen) return false;
+        }
+        return true;
       }
     }
-    lines.push(line);
+    return unknown ? null : false;
   }
-  return lines;
+  if (bytes.length < 4 || view.getUint32(0) !== 0x1a45dfa3) return null;
+  function vint(offset, identifier) {
+    const first = bytes[offset];
+    if (!first) return null;
+    let mask = 128, length = 1;
+    while (!(first & mask)) { mask >>= 1; length++; }
+    if (offset + length > bytes.length || (identifier && length > 4)) return null;
+    let value = identifier ? first : first & (mask - 1);
+    let unknown = !identifier && value === mask - 1;
+    for (let i = 1; i < length; i++) { value = value * 256 + bytes[offset + i]; unknown = unknown && bytes[offset + i] === 255; }
+    if (!unknown && !Number.isSafeInteger(value)) return null;
+    return { value, length, unknown };
+  }
+  function elements(begin, end) {
+    const result = [];
+    for (let offset = begin; offset < end;) {
+      const id = vint(offset, true); if (!id) return null;
+      const size = vint(offset + id.length, false); if (!size) return null;
+      const content = offset + id.length + size.length;
+      const finish = size.unknown ? end : content + size.value;
+      if (finish > end || finish <= offset) return null;
+      result.push({ id: id.value, begin: content, end: finish }); offset = finish;
+    }
+    return result;
+  }
+  const segment = elements(0, bytes.length)?.find(element => element.id === 0x18538067);
+  const tracks = segment && elements(segment.begin, segment.end)?.find(element => element.id === 0x1654ae6b);
+  if (!tracks) return null;
+  const entries = elements(tracks.begin, tracks.end)?.filter(element => element.id === 0xae);
+  if (!entries?.length) return null;
+  let unknown = false;
+  for (const entry of entries) {
+    const type = elements(entry.begin, entry.end)?.find(element => element.id === 0x83);
+    if (!type || type.end - type.begin < 1 || type.end - type.begin > 8) { unknown = true; continue; }
+    let value = 0;
+    for (let i = type.begin; i < type.end; i++) value = value * 256 + bytes[i];
+    if (!Number.isSafeInteger(value)) { unknown = true; continue; }
+    if (value === 2) return true;
+  }
+  return unknown ? null : false;
 }
 
-function drawCaption(context, text, width, height) {
-  const maxWidth = width * 0.86;
-  const maxHeight = height * 0.72;
-  let size = Math.max(16, Math.round(Math.min(width * 0.047, height * 0.07)));
-  let lines;
-  let fits = false;
-  for (; size >= 8; size--) {
-    context.font = `600 ${size}px system-ui, -apple-system, Arial, sans-serif`;
-    lines = wrapText(context, text, maxWidth);
-    if (lines.length * size * 1.25 <= maxHeight) { fits = true; break; }
+export async function decodeSoundtrack(blob, audio, signal, { allowSilent = false } = {}) {
+  const bytes = await guarded(blob.arrayBuffer(), signal);
+  const timeline = { leadIn: 0 };
+  const presence = allowSilent ? containerHasAudio(bytes, timeline) : true;
+  if (presence === false) return null;
+  try {
+    const buffer = await guarded(audio.decodeAudioData(bytes), signal, 60000, 'Audio decoding took too long for this device.');
+    return { buffer, leadIn: timeline.leadIn };
   }
-  if (!fits) throw fail('INVALID_CAPTIONS', 'A caption is too long to fit. Split it into shorter timed captions.');
-  const lineHeight = size * 1.25;
-  const padding = size * 0.48;
-  const textWidth = Math.max(...lines.map(line => context.measureText(line).width));
-  const bottom = height * 0.9;
-  const top = bottom - lines.length * lineHeight;
-  context.fillStyle = 'rgba(0, 0, 0, 0.78)';
-  context.fillRect((width - textWidth) / 2 - padding, top - padding, textWidth + padding * 2, lines.length * lineHeight + padding * 2);
-  context.fillStyle = '#fff';
-  context.textAlign = 'center';
-  context.textBaseline = 'top';
-  lines.forEach((line, i) => context.fillText(line, width / 2, top + i * lineHeight));
+  catch (cause) {
+    checkAbort(signal);
+    if (cause instanceof VideoProcessingError) throw cause;
+    throw fail('UNSUPPORTED_FORMAT', 'This browser could not decode the soundtrack for editing. Your original video is unchanged.', cause);
+  }
 }
 
 /**
@@ -187,11 +263,13 @@ function drawCaption(context, text, width, height) {
  * Re-encodes at up to 30fps in real time. Keep the page visible and screen on.
  * Silent source videos receive a silent audio track; speech/music are never synthesised.
  */
-export async function processVideo({ blob, start = 0, end, captions = [], aspect = 'original', logo, music, musicVolume = 0.15, signal, onProgress } = {}) {
+export async function processVideo({ blob, start = 0, end, captions = [], aspect = 'original', maxEdge = 0, title = {}, captionStyle = {}, chroma = {}, background, logo, music, musicVolume = 0.15, signal, onProgress } = {}) {
   if (!(blob instanceof Blob) || blob.size === 0) throw fail('INVALID_INPUT', 'Choose a non-empty video file.');
   if (!Number.isFinite(start) || start < 0 || (end !== undefined && (!Number.isFinite(end) || end <= start))) throw fail('INVALID_RANGE', 'Trim end must be later than trim start.');
   const cues = normalizeCaptions(captions);
   if (!['original', '9:16', '16:9', '1:1'].includes(aspect)) throw fail('INVALID_INPUT', 'Choose original, portrait, landscape or square aspect.');
+  if (![0,1280,1920].includes(maxEdge)) throw fail('INVALID_INPUT', 'Choose original, 1080p or 720p output size.');
+  if (background !== undefined && (!(background instanceof Blob) || background.size === 0)) throw fail('INVALID_INPUT', 'The background must be a non-empty image.');
   if (logo !== undefined && (!(logo instanceof Blob) || logo.size === 0)) throw fail('INVALID_INPUT', 'The logo must be a non-empty image file.');
   if (music !== undefined && (!(music instanceof Blob) || music.size === 0)) throw fail('INVALID_INPUT', 'The music must be a non-empty audio file.');
   if (!Number.isFinite(musicVolume) || musicVolume < 0 || musicVolume > 1) throw fail('INVALID_INPUT', 'Music volume must be between 0 and 1.');
@@ -209,8 +287,8 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
   document.addEventListener('visibilitychange', onVisibility);
   const emit = value => { try { onProgress?.(value); } catch { /* UI callbacks must not discard a finished take. */ } };
   let video, sourceUrl, audio, audioSource, audioDestination, canvasStream, outputStream, recorder;
-  let musicElement, musicUrl, musicSource, musicGain, logoImage, logoUrl;
-  let frame = 0, watchdog = 0;
+  let musicSource, musicGain, logoImage, logoUrl, backgroundImage, backgroundUrl, compositor;
+  let frame = 0, decodedFrame = 0, watchdog = 0;
   const cleanupCallbacks = [];
 
   try {
@@ -219,42 +297,27 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
     video = document.createElement('video');
     video.playsInline = true;
     video.preload = 'auto';
-    video.muted = false;
+    video.muted = true;
     video.volume = 1;
     video.setAttribute('aria-hidden', 'true');
     video.setAttribute('playsinline', '');
     video.tabIndex = -1;
-    // Do not use display:none: some browsers suspend decoding of hidden media.
-    video.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.001;pointer-events:none;z-index:-1;';
+    // Keep a tiny unobscured decoder surface. WebKit does not deliver decoded-frame
+    // callbacks for display:none or a video occluded behind the page (z-index:-1).
+    video.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:2147483647;';
     document.body.appendChild(video);
     const Audio = globalThis.AudioContext || globalThis.webkitAudioContext;
     audio = new Audio();
-    audioSource = audio.createMediaElementSource(video);
     audioDestination = audio.createMediaStreamDestination();
-    audioSource.connect(audioDestination); // Deliberately not connected to speakers.
-    if (music) {
-      musicElement = document.createElement('audio');
-      musicElement.preload = 'auto';
-      musicElement.loop = true;
-      musicElement.setAttribute('aria-hidden', 'true');
-      musicElement.style.display = 'none';
-      document.body.appendChild(musicElement);
-      musicSource = audio.createMediaElementSource(musicElement);
-      musicGain = audio.createGain();
-      musicGain.gain.value = musicVolume;
-      musicSource.connect(musicGain);
-      musicGain.connect(audioDestination);
-      musicUrl = URL.createObjectURL(music);
-      musicElement.src = musicUrl;
-    }
+    // Keep the video decoder on its own muted playback clock. In WebKit,
+    // createMediaElementSource(video) can stall its displayed frame clock while
+    // audio keeps running. Scheduled decoded audio avoids that A/V divergence.
     const resumed = audio.resume(); // Run both activation-sensitive calls before the first await.
     sourceUrl = URL.createObjectURL(blob);
     video.src = sourceUrl;
     const primed = video.play();
-    const primedMusic = musicElement?.play();
-    await guarded(Promise.all([resumed, primed, primedMusic]), localSignal);
+    await guarded(Promise.all([resumed, primed]), localSignal);
     video.pause();
-    musicElement?.pause();
     if (logo) {
       logoImage = new Image();
       if (typeof logoImage.decode !== 'function') throw fail('UNSUPPORTED_API', 'This browser does not provide the image decoder required for logo export.');
@@ -263,6 +326,11 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
       try { await guarded(logoImage.decode(), localSignal); }
       catch (cause) { checkAbort(localSignal); throw fail('INVALID_INPUT', 'The browser could not read this logo image. Try a PNG or JPEG.', cause); }
       if (!logoImage.naturalWidth || !logoImage.naturalHeight) throw fail('INVALID_INPUT', 'The logo image has no dimensions.');
+    }
+    if (background && chroma.enabled) {
+      backgroundImage=new Image();backgroundUrl=URL.createObjectURL(background);backgroundImage.src=backgroundUrl;
+      try { await guarded(backgroundImage.decode(),localSignal); }
+      catch(cause) { checkAbort(localSignal);throw fail('INVALID_INPUT','The background image could not be read. Try a PNG or JPEG.',cause); }
     }
     if (audio.state !== 'running') throw fail('USER_GESTURE_REQUIRED', 'The browser did not allow audio processing. Tap export again.');
     if (!video.videoWidth || !video.videoHeight) throw fail('SOURCE_UNREADABLE', 'The file has no decodable video track.');
@@ -276,8 +344,24 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
     const clipEnd = Math.min(end ?? duration, duration);
     if (start >= clipEnd || clipEnd - start < 0.1) throw fail('INVALID_RANGE', 'Choose a video range at least 0.1 seconds long.');
     const clipDuration = clipEnd - start;
+    const decodedAudio = await decodeSoundtrack(blob, audio, localSignal, { allowSilent: true });
+    audioSource = audio.createBufferSource();
+    audioSource.buffer = decodedAudio?.buffer || audio.createBuffer(1, 128, audio.sampleRate);
+    audioSource.loop = !decodedAudio;
+    audioSource.connect(audioDestination);
+    // Keep a real zero-valued stream running for silent inputs. An unconnected
+    // destination can emit no audio buffers and prevent WebKit's encoder flushing.
+    if (music) {
+      const decodedMusic = await decodeSoundtrack(music, audio, localSignal);
+      musicSource = audio.createBufferSource();
+      musicSource.buffer = decodedMusic.buffer;
+      musicSource.loop = true;
+      musicGain = audio.createGain();
+      musicGain.gain.value = musicVolume;
+      musicSource.connect(musicGain);
+      musicGain.connect(audioDestination);
+    }
     await seek(video, start, localSignal);
-    if (musicElement) await seek(musicElement, 0, localSignal);
     const canvas = document.createElement('canvas');
     let cropWidth = video.videoWidth;
     let cropHeight = video.videoHeight;
@@ -293,15 +377,26 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
       outputWidth = numerator * factor;
       outputHeight = denominator * factor;
     }
+    if(maxEdge){
+      const landscape=outputWidth>=outputHeight;
+      const limitWidth=landscape?maxEdge:maxEdge*9/16,limitHeight=landscape?maxEdge*9/16:maxEdge;
+      const scale=Math.min(1,limitWidth/outputWidth,limitHeight/outputHeight);
+      if(scale<1){
+        if(aspect==='original'){outputWidth=Math.max(2,Math.floor(outputWidth*scale/2)*2);outputHeight=Math.max(2,Math.floor(outputHeight*scale/2)*2);}
+        else{const [a,b]=aspect.split(':').map(Number),factor=Math.floor(Math.min(outputWidth*scale/a,outputHeight*scale/b)/2)*2;outputWidth=a*factor;outputHeight=b*factor;}
+      }
+    }
     const cropX = (video.videoWidth - cropWidth) / 2;
     const cropY = (video.videoHeight - cropHeight) / 2;
     // Exact aspect and even encoder dimensions; original recordings retain their dimensions.
     canvas.width = outputWidth;
     canvas.height = outputHeight;
-    const context = canvas.getContext('2d', { alpha: false });
+    const context = canvas.getContext('2d', { alpha: false, willReadFrequently: !!chroma.enabled });
     if (!context) throw fail('UNSUPPORTED_API', 'This browser cannot create a video drawing surface.');
+    compositor=createCompositor({width:canvas.width,height:canvas.height,title,captionStyle,chroma,backgroundImage});
     const render = () => {
       context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+      compositor.draw(context,{time:video.currentTime,captions:cues});
       if (logoImage) {
         const scale = Math.min(canvas.width * 0.22 / logoImage.naturalWidth, canvas.height * 0.15 / logoImage.naturalHeight);
         const width = logoImage.naturalWidth * scale;
@@ -309,8 +404,6 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
         const gap = Math.min(canvas.width, canvas.height) * 0.035;
         context.drawImage(logoImage, canvas.width - width - gap, gap, width, height);
       }
-      const active = cues.filter(cue => cue.start <= video.currentTime && cue.end > video.currentTime);
-      if (active.length) drawCaption(context, active.map(cue => cue.text).join('\n'), canvas.width, canvas.height);
     };
     render();
     canvasStream = canvas.captureStream(30);
@@ -341,16 +434,17 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
     let finishRequested = false;
     await new Promise((resolve, reject) => {
       const clean = () => {
-        cancelAnimationFrame(frame); clearInterval(watchdog);
+        cancelAnimationFrame(frame); if (decodedFrame) video?.cancelVideoFrameCallback(decodedFrame); clearInterval(watchdog);
         localSignal.removeEventListener('abort', abort);
         video.removeEventListener('ended', finish);
         video.removeEventListener('error', sourceError);
-        musicElement?.removeEventListener('error', sourceError);
       };
       const finish = () => {
         if (finishRequested) return;
         finishRequested = true;
-        clean(); video.pause(); musicElement?.pause();
+        clean(); video.pause();
+        try { audioSource?.stop(); } catch {}
+        try { musicSource?.stop(); } catch {}
         try { if (recorder.state !== 'inactive') recorder.stop(); else stopResolve(); } catch (error) { reject(error); return; }
         resolve();
       };
@@ -373,7 +467,6 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
       localSignal.addEventListener('abort', abort, { once: true });
       video.addEventListener('ended', finish, { once: true });
       video.addEventListener('error', sourceError, { once: true });
-      musicElement?.addEventListener('error', sourceError, { once: true });
       cleanupCallbacks.push(clean);
       watchdog = setInterval(() => {
         if (performance.now() - lastMovement > 10000 || audio.state !== 'running') {
@@ -382,19 +475,27 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
       }, 500);
       try {
         checkAbort(localSignal);
-        // Wait until source playback actually starts before starting the recorder.
-        // WebKit can spend several hundred milliseconds starting audio after play().
-        // Recording during that wait would insert silent/frozen padding into the output.
-        Promise.resolve(video.play()).then(() => {
+        // Start from the first decoded post-seek frame, not play() resolution:
+        // WebKit may resolve that promise late, or expose a stale frame at seeked.
+        decodedFrame = video.requestVideoFrameCallback(() => {
           if (finishRequested || localSignal.aborted) return;
           try {
-            if (musicElement) Promise.resolve(musicElement.play()).catch(error => controller.abort(fail('PLAYBACK_FAILED', 'The browser could not play the selected background music.', error)));
-            recorder.start(1000);
+            if (video.currentTime - start > 0.15) throw fail('TIMING_UNRELIABLE', 'Video playback started too late to preserve the trim boundary. Try export again.');
             render();
+            recorder.start(1000);
+            const audioStart = audio.currentTime;
+            if (decodedAudio) {
+              const audibleStart = Math.max(start, decodedAudio.leadIn);
+              const audibleEnd = Math.min(clipEnd, decodedAudio.leadIn + decodedAudio.buffer.duration);
+              if (audibleEnd > audibleStart) audioSource.start(audioStart + audibleStart - start, audibleStart - decodedAudio.leadIn, audibleEnd - audibleStart);
+            } else audioSource.start(audioStart, 0);
+            musicSource?.start(audioStart, 0);
             lastMovement = performance.now();
             frame = requestAnimationFrame(tick);
           } catch (error) { clean(); reject(error); }
-        }, error => {
+        });
+        Promise.resolve(video.play()).catch(error => {
+          if (finishRequested || localSignal.aborted) return;
           clean(); reject(fail(error.name === 'NotAllowedError' ? 'USER_GESTURE_REQUIRED' : 'PLAYBACK_FAILED', 'The browser could not start video playback. Tap export again.', error));
         });
       } catch (error) { clean(); reject(error); }
@@ -415,29 +516,32 @@ export async function processVideo({ blob, start = 0, end, captions = [], aspect
   } catch (error) {
     if (localSignal.aborted) throw abortError(localSignal);
     if (error instanceof VideoProcessingError) throw error;
+    if (error?.name === 'VisualEffectsError') throw fail(error.code,error.message,error);
     if (error?.name === 'NotAllowedError') throw fail('USER_GESTURE_REQUIRED', 'Tap export again to allow local playback and audio processing.', error);
     if (error?.name === 'NotSupportedError') throw fail('UNSUPPORTED_FORMAT', 'This browser cannot decode or encode this video format.', error);
     throw fail('PROCESSING_FAILED', 'Local video processing failed. The original video is unchanged.', error);
   } finally {
     cleanupCallbacks.forEach(fn => fn());
-    cancelAnimationFrame(frame); clearInterval(watchdog);
+    cancelAnimationFrame(frame); if (decodedFrame) video?.cancelVideoFrameCallback(decodedFrame); clearInterval(watchdog);
     if (recorder && recorder.state !== 'inactive') { try { recorder.stop(); } catch {} }
     if (recorder) { recorder.ondataavailable = null; recorder.onerror = null; recorder.onstop = null; }
     video?.pause();
-    musicElement?.pause();
     outputStream?.getTracks().forEach(track => track.stop());
     canvasStream?.getTracks().forEach(track => track.stop());
     audioDestination?.stream.getTracks().forEach(track => track.stop());
+    try { audioSource?.stop(); } catch {}
+    try { musicSource?.stop(); } catch {}
     try { audioSource?.disconnect(); } catch {}
     try { musicSource?.disconnect(); } catch {}
     try { musicGain?.disconnect(); } catch {}
     try { audioDestination?.disconnect(); } catch {}
     if (audio && audio.state !== 'closed') { try { await audio.close(); } catch {} }
     if (video) { video.removeAttribute('src'); video.load(); video.remove(); }
-    if (musicElement) { musicElement.removeAttribute('src'); musicElement.load(); musicElement.remove(); }
+    compositor?.dispose();
+    if (backgroundImage) backgroundImage.removeAttribute('src');
+    if (backgroundUrl) URL.revokeObjectURL(backgroundUrl);
     if (logoImage) logoImage.removeAttribute('src');
     if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-    if (musicUrl) URL.revokeObjectURL(musicUrl);
     if (logoUrl) URL.revokeObjectURL(logoUrl);
     signal?.removeEventListener('abort', forwardAbort);
     document.removeEventListener('visibilitychange', onVisibility);

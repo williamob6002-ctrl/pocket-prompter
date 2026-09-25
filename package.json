@@ -1,1 +1,12 @@
-{"name":"pocket-prompter","private":true,"version":"1.0.0","type":"module","scripts":{"start":"python3 -m http.server 4173 --bind 127.0.0.1","check":"node --check app.js && node --check storage.js && node --check sw.js"}}
+{
+  "name": "pocket-prompter",
+  "private": true,
+  "version": "1.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 4173 --bind 127.0.0.1",
+    "check": "node --check app.js && node --check storage.js && node --check voice-follow.js && node --check video-processing.js && node --check audio-monitor.js && node --check audio-export.js && node --check visual-effects.js && node --check sw.js",
+    "cache": "node scripts/build-cache.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

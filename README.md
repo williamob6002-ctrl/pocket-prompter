@@ -21,18 +21,19 @@ Open the published app link in Safari. Choose Share → Add to Home Screen, leav
 |---|---|---|
 | Scripts | Create, edit, autosave, search, duplicate, delete; bold/highlight cues; word/time estimate; text sharing; backup/restore | Stored on this device; no cloud account or live sync |
 | Import | TXT, MD, DOCX, text PDF, basic RTF; iCloud/Files documents through the system picker | 15 MB per document; 200 PDF pages; 500,000 characters; no legacy DOC or OCR; complex RTF layouts may flatten |
-| Reading | 40–300 words/min, touch seek, progress, pause/resume, restart, countdown, loop, timer | Speed is an average based on total script length and layout |
+| Reading | 40–300 words/min, touch seek, progress, pause/resume, restart, start/finish countdown, loop, timer | Speed is an average based on total script length and layout |
 | Text | Size, font, colours, alignment, line spacing, width, reading guide; horizontal/vertical mirrors | Portrait/landscape follows device orientation |
 | Controls | Touch, full-screen on supported browsers, keyboard and clickers emitting keyboard keys | No dedicated Watch app, hardware volume-button control or arbitrary Bluetooth protocol |
+| Sound assistance | Live microphone level, adjustable silence threshold and hold time; waits during silence while video continues | Detects sound, not script words; noise can keep scrolling active; manual Pause still pauses both |
 | Voice following | Experimental browser speech recognition with actual script-word matching | Practice only; browser availability varies; may send audio to provider and need internet; not offline PromptSmart parity |
-| Recording | Front/back camera preference, microphone, pause/resume, multiple takes, 720p/1080p/4K preferences; device-exposed zoom/exposure/focus controls; MP4 preferred with WebM fallback | Actual format/resolution depends on device/browser; keep app open; no app-imposed duration limit, but device resources apply |
-| Review/export | Local take library, playback, download and system file sharing | Physical iPhone Photos/share destinations need target-device confirmation |
-| Editing | Trim, centre crop to portrait/landscape/square, picture/logo, background music mix; creates separate copy | Exports run in real time and must stay foreground. Some Safari/WebKit exports have timing problems and are rejected safely; original video and SRT export remain usable. No chroma key, beauty filters or advanced timeline |
-| Captions | Import/edit SRT, estimated script drafts, trim-adjusted SRT export, burned-in caption export | Drafts are not speech-to-text; review wording and every timing; no automatic transcription |
+| Recording | Front/back camera preference, microphone, pause/resume, multiple takes, 720p/1080p/4K and 24/25/30/60 fps preferences; device-exposed zoom/exposure/focus controls; MP4 preferred with WebM fallback | Actual format/resolution depends on device/browser; keep app open; no app-imposed duration limit, but device resources apply |
+| Review/export | Local take library, playback, download, system file sharing and trimmed WAV audio export | Physical iPhone Photos/share destinations need target-device confirmation |
+| Editing | Trim, centre crop, picture/logo, titles, background music mix, green/blue-screen replacement with colour or picture, appearance preview; creates separate copy | Exports run in real time, up to 30 fps, and must stay foreground. Choose original resolution, up to 1080p or 720p. Full-file audio decoding uses memory; long/high-resolution exports need a capable device. Timing and dimensions are checked before saving; a browser failure keeps the original. Browser-encoded colour metadata can be interpreted differently by other players. Chroma key needs an evenly lit coloured background; no beauty filters or advanced timeline |
+| Captions | Import/edit SRT, estimated script drafts, trim-adjusted SRT export, burned-in captions with size, colour, position and background styling | Drafts are not speech-to-text; review wording and every timing; no automatic transcription |
 | Offline/privacy | App shell, fonts/parsers, reading, editing and camera recording run locally; no analytics | Initial HTTPS download required; optional voice service and system sharing are external; the host receives normal page requests |
 | Free sharing | Public HTTPS web app; free GitHub Pages hosting; no paid API/server | Hosting remains subject to GitHub's free service limits and availability |
 
-**Not included:** AI script generation, AI eye-contact correction, automatic speech captions, chroma key, text floating above other iPhone apps, cloud collaboration, proprietary remote apps or native camera features not exposed by the browser. These are explicit differences, not full parity with every paid teleprompter feature. See [BENCHMARK.md](./BENCHMARK.md) for sourced comparisons of Teleprompter for Video, PromptSmart Pro and BIGVU.
+**Not included:** AI script generation, AI eye-contact correction, automatic speech captions, text floating above other iPhone apps, cloud collaboration, proprietary remote apps or native camera features not exposed by the browser. These are explicit differences, not full parity with every paid teleprompter feature. See [BENCHMARK.md](./BENCHMARK.md) for sourced comparisons of Teleprompter for Video, PromptSmart Pro and BIGVU.
 
 ## Reliability and privacy
 
@@ -43,15 +44,16 @@ Open the published app link in Safari. Choose Share → Add to Home Screen, leav
 - Clearing website data removes the local library. Use **Back up scripts** and save individual videos to Photos/Files. Backups do not contain video.
 - Voice following is optional and off by default. Enabling it authorizes the browser's speech service, which may process microphone audio remotely. It is disabled during recording.
 - Exported video is camera/microphone media only unless you deliberately apply captions, a picture or music in the editor.
+- Video effects and sound/silence detection run locally and do not use the optional speech service.
 - Use only music or pictures you have permission to include in the school project.
 
 ## Running and maintaining
 
 Serve this directory over localhost or HTTPS. `npm start` serves locally at `http://127.0.0.1:4173`; there is no dependency installation or build step. Browsers require HTTPS (or localhost) for camera, microphone and service workers. Opening `index.html` as a local file is not supported.
 
-`app.js` owns the UI and recording workflow; `storage.js` stores takes; `voice-follow.js` matches recognised speech to script words; `video-processing.js` performs local real-time video edits. Import libraries and their license notices are in `import-module/`. All runtime dependencies are bundled for offline use.
+`app.js` owns the UI and recording workflow; `storage.js` stores takes; `voice-follow.js` matches recognised speech to script words; `video-processing.js` performs local real-time video edits; `visual-effects.js` composites titles/captions/backgrounds; `audio-monitor.js` handles local sound levels; `audio-export.js` writes WAV files. Import libraries and their license notices are in `import-module/`. All runtime dependencies are bundled for offline use.
 
-After changing runtime files, regenerate the service worker's asset list/version to invalidate the old cache. The worker does not replace an active app session; close all windows and reopen to use the update.
+After changing runtime files, run `npm run check` and `npm run cache` to regenerate the service worker's asset list/version. The worker does not replace an active app session; close all windows and reopen to use the update.
 
 ## Validation
 
