@@ -1,4 +1,4 @@
-import {saveTake, saveChunk, listTakes, takeBlob, deleteTake} from './storage.js';
+import {saveTake, saveChunk, listTakes, takeBlob, deleteTake, updateTakeMetadata} from './storage.js';
 import {processVideo, toSrt, parseSrt, trimCaptions, getVideoProcessingSupport} from './video-processing.js';
 import {VoiceFollower} from './voice-follow.js';
 import {exportAudio} from './audio-export.js';
@@ -28,7 +28,7 @@ let stream=null,recorder=null,recordInfo=null,chunkQueue=Promise.resolve(),recor
 let recordingStarting=false,recordSegmentActive=false;
 function accumulateRecording(){if(recordSegmentActive){recordAccum+=(performance.now()-recordStarted)/1000;recordSegmentActive=false;}}
 let stopPromise=null,resolveStop=null,recordStarted=0,recordAccum=0,sessionElapsed=0,lastFrame=0,scrollPosition=0,wakeLock=null,voiceFollower=null;
-let selectedTake=null,selectedBlob=null,takeURL=null,cameraRequest=0;
+let selectedTake=null,selectedBlob=null,takeURL=null,cameraRequest=0,captionDirty=false;
 let exportController=null,previewTrimEnd=null,finishAt=0;
 let soundDetected=false,monitorReady=false;
 function setTextIfChanged(selector,text){const element=$(selector);if(element.textContent!==text)element.textContent=text;}
@@ -79,7 +79,7 @@ $('#format-help').onclick=()=>message('Emphasise the important words','Wrap word
 $('#share-app').onclick=async()=>{const url=new URL('./',location.href).href;try{if(navigator.share)await navigator.share({title:'Pocket Prompter',text:'Free teleprompter: read, record and share. Open in Safari, then Add to Home Screen.',url});else if(navigator.clipboard){await navigator.clipboard.writeText(url);toast('App link copied');}else message('Share this link',url);}catch(e){if(e.name!=='AbortError')message('Share this link',url);}};
 $('#backup-scripts').onclick=()=>download(new Blob([JSON.stringify({app:'pocket-prompter',version:1,exportedAt:new Date().toISOString(),scripts:data.scripts,settings},null,2)],{type:'application/json'}),`Pocket-Prompter-backup-${new Date().toISOString().slice(0,10)}.json`);
 $('#restore-scripts').onclick=()=>{$('#import-file').accept='.json';$('#import-file').click();};
-$('#import-script').onclick=()=>{$('#import-file').accept='.txt,.md,.docx,.pdf,.rtf,.json';$('#import-file').click();};
+$('#import-script').onclick=()=>{$('#import-file').accept='.txt,.md,.doc,.docx,.pdf,.rtf,.gdoc,.json';$('#import-file').click();};
 $('#import-file').onchange=async e=>{
   const file=e.target.files?.[0];if(!file)return;e.target.value='';$('#import-script').disabled=true;
   try{
@@ -255,10 +255,12 @@ async function renderTakes(){
   }catch{const p=document.createElement('p');p.className='notice';p.textContent='Recordings storage is unavailable. Check available device storage and use normal browsing, rather than private browsing.';container.append(p);}
 }
 async function openTake(take,blob){
-  try{selectedTake=take;selectedBlob=blob||await takeBlob(take);if(takeURL)URL.revokeObjectURL(takeURL);takeURL=URL.createObjectURL(selectedBlob);$('#take-player').src=takeURL;$('#take-title').textContent=take.title;$('#take-meta').textContent=take.warning||`${clock(take.duration)} · ${(selectedBlob.size/1024/1024).toFixed(1)} MB · ${take.width||'?'}×${take.height||'?'} · ${selectedBlob.type.includes('mp4')?'MP4':'WebM'}${take.status==='recording'?' · Interrupted recording; playback may be incomplete':''}`;$('#trim-start').value=0;$('#trim-end').value=(take.duration||0).toFixed(1);$('#caption-text').value=take.captions?toSrt(take.captions):'';$('#burn-captions').checked=false;$('#video-aspect').value='original';$('#video-logo').value='';$('#video-music').value='';resetEffects();$('#edit-take').open=false;$('#export-progress').hidden=true;previewTrimEnd=null;$('#take-dialog').showModal();}
+  try{selectedTake=take;selectedBlob=blob||await takeBlob(take);if(takeURL)URL.revokeObjectURL(takeURL);takeURL=URL.createObjectURL(selectedBlob);$('#take-player').src=takeURL;$('#take-title').textContent=take.title;$('#take-meta').textContent=take.warning||`${clock(take.duration)} · ${(selectedBlob.size/1024/1024).toFixed(1)} MB · ${take.width||'?'}×${take.height||'?'} · ${selectedBlob.type.includes('mp4')?'MP4':'WebM'}${take.status==='recording'?' · Interrupted recording; playback may be incomplete':''}`;$('#trim-start').value=0;$('#trim-end').value=(take.duration||0).toFixed(1);$('#caption-text').value=take.captions?toSrt(take.captions):'';captionDirty=false;$('#caption-save-state').textContent=take.captions?.length?'Captions saved with this take.':'Caption edits can be kept with this take.';$('#burn-captions').checked=false;$('#video-aspect').value='original';$('#video-logo').value='';$('#video-music').value='';resetEffects();restoreCaptionStyle(take.captionStyle);$('#edit-take').open=false;$('#export-progress').hidden=true;previewTrimEnd=null;$('#take-dialog').showModal();}
   catch(e){message('Could not open take',`${e.message}\nAn interrupted recording may not have saved enough data. You can remove empty takes from the list.`);}
 }
-$('#take-dialog').addEventListener('cancel',e=>{if(exportController){e.preventDefault();toast('Use Cancel processing before closing.');}});
+function canLeaveTake(){return !captionDirty||confirm('Leave without keeping your caption edits? Use Keep captions with this take to save them.');}
+$('#take-dialog .dialog-heading').addEventListener('submit',e=>{if(!canLeaveTake())e.preventDefault();});
+$('#take-dialog').addEventListener('cancel',e=>{if(exportController){e.preventDefault();toast('Use Cancel processing before closing.');}else if(!canLeaveTake())e.preventDefault();});
 $('#take-dialog').addEventListener('close',()=>{exportController?.abort();$('#take-player').pause();$('#take-player').removeAttribute('src');$('#take-player').load();if(takeURL){URL.revokeObjectURL(takeURL);takeURL=null;}selectedBlob=null;selectedTake=null;if(activeView==='takes')renderTakes();});
 $('#share-take').onclick=async()=>{if(!selectedBlob)return;try{const shared=await shareFile(selectedBlob,`${fileName(selectedTake.title)}.${selectedBlob.type.includes('mp4')?'mp4':'webm'}`,selectedTake.title);if(!shared)toast('Video download started');}catch(e){if(e.name!=='AbortError')message('Could not share video',`${e.message}\nTry the Download button instead.`);}};
 $('#download-take').onclick=()=>{if(selectedBlob)download(selectedBlob,`${fileName(selectedTake.title)}.${selectedBlob.type.includes('mp4')?'mp4':'webm'}`);};
@@ -270,15 +272,28 @@ $('#set-trim-start').onclick=()=>$('#trim-start').value=$('#take-player').curren
 $('#set-trim-end').onclick=()=>$('#trim-end').value=$('#take-player').currentTime.toFixed(2);
 function trimRange(){const start=Number($('#trim-start').value),end=Number($('#trim-end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)throw new Error('End time must be later than the start time.');const duration=$('#take-player').duration;if(Number.isFinite(duration)&&(start>=duration||end>duration+.05))throw new Error('Choose start and end times within this take.');return {start,end:Math.min(end,Number.isFinite(duration)?duration:end)};}
 $('#preview-trim').onclick=async()=>{try{const {start,end}=trimRange();$('#take-player').currentTime=start;previewTrimEnd=end;await $('#take-player').play();}catch(e){message('Check the selection',e.message);}};
-$('#draft-captions').onclick=()=>{if(!selectedTake?.script){message('No script for this take','Import an SRT file or enter captions and timings below.');return;}if($('#caption-text').value&&!confirm('Replace the current captions with a script draft?'))return;const words=selectedTake.script.split(/\s+/u).filter(Boolean),duration=selectedTake.duration||Number($('#trim-end').value);if(!(duration>0))return;const captions=[];for(let i=0;i<words.length;i+=8)captions.push({start:i/words.length*duration,end:Math.min(i+8,words.length)/words.length*duration,text:words.slice(i,i+8).join(' ')});$('#caption-text').value=toSrt(captions);toast('Estimated captions added. Check every word and timing.');};
+$('#draft-captions').onclick=()=>{if(!selectedTake?.script){message('No script for this take','Import an SRT file or enter captions and timings below.');return;}if($('#caption-text').value&&!confirm('Replace the current captions with a script draft?'))return;const words=selectedTake.script.split(/\s+/u).filter(Boolean),duration=selectedTake.duration||Number($('#trim-end').value);if(!(duration>0))return;const captions=[];for(let i=0;i<words.length;i+=8)captions.push({start:i/words.length*duration,end:Math.min(i+8,words.length)/words.length*duration,text:words.slice(i,i+8).join(' ')});$('#caption-text').value=toSrt(captions);captionChanged();toast('Estimated captions added. Check every word and timing.');};
 $('#import-captions').onclick=()=>$('#captions-file').click();
-$('#captions-file').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>2*1024*1024)throw new Error('Choose an SRT file under 2 MB.');const text=await file.text();const captions=parseSrt(text);$('#caption-text').value=toSrt(captions);toast(`${captions.length} captions imported`);}catch(e){message('Could not import captions',e.message);}};
+$('#captions-file').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>2*1024*1024)throw new Error('Choose an SRT file under 2 MB.');const text=await file.text();const captions=parseSrt(text);$('#caption-text').value=toSrt(captions);captionChanged();toast(`${captions.length} captions imported`);}catch(e){message('Could not import captions',e.message);}};
+function captionChanged(){captionDirty=true;$('#caption-save-state').textContent='Caption changes not yet saved.';}
+$('#caption-text').addEventListener('input',captionChanged);
+$('#save-captions').onclick=async()=>{
+  if(!selectedTake)return;const id=selectedTake.id,text=$('#caption-text').value,captionStyle=effectsOptions().captionStyle,button=$('#save-captions');button.disabled=true;
+  try{const captions=parseSrt(text),updated=await updateTakeMetadata(id,{captions,captionStyle});if(selectedTake?.id===id){selectedTake=updated;captionDirty=$('#caption-text').value!==text||JSON.stringify(effectsOptions().captionStyle)!==JSON.stringify(captionStyle);$('#caption-save-state').textContent=captionDirty?'New caption changes not yet saved.':'Captions saved with this take.';}}
+  catch(e){message('Could not save captions',e.message);}
+  finally{button.disabled=false;}
+};
 $('#export-captions').onclick=()=>{try{const captions=parseSrt($('#caption-text').value);if(!captions.length)throw new Error('Add captions first.');download(new Blob([toSrt(captions,trimRange())],{type:'text/plain;charset=utf-8'}),`${fileName(selectedTake.title)}.srt`);}catch(e){message('Check the captions',e.message);}};
 $('#export-audio').onclick=async()=>{if(!selectedBlob)return;const take={...selectedTake},blob=selectedBlob;const button=$('#export-audio');button.disabled=true;try{const range=trimRange();toast('Preparing audio…');const audio=await exportAudio(blob,range);download(audio,`${fileName(take.title)}.wav`);toast('Audio download ready');}catch(e){message('Could not export audio',e.message);}finally{button.disabled=false;}};
 function resetEffects(){
   for(const [id,value]of Object.entries({'overlay-title':'','title-position':'top','title-size':'medium','title-color':'#ffffff','chroma-key':'off','chroma-threshold':'0.20','chroma-color':'#163b83','chroma-image':'','caption-size':'medium','caption-color':'#ffffff','caption-position':'bottom','edit-size':'1920'}))$('#'+id).value=value;
   $('#caption-background').checked=true;$('#effects-preview').hidden=true;
 }
+function restoreCaptionStyle(style={}){
+  for(const [id,key,allowed]of [['caption-size','size',['small','medium','large']],['caption-color','color',['#ffffff','#ffe66e']],['caption-position','position',['top','center','bottom']]])if(allowed.includes(style?.[key]))$('#'+id).value=style[key];
+  if(typeof style?.background==='boolean')$('#caption-background').checked=style.background;
+}
+for(const id of ['caption-size','caption-color','caption-position','caption-background'])$('#'+id).addEventListener('input',captionChanged);
 function effectsOptions(){return {maxEdge:Number($('#edit-size').value),title:{text:$('#overlay-title').value,position:$('#title-position').value,size:$('#title-size').value,color:$('#title-color').value},captionStyle:{size:$('#caption-size').value,color:$('#caption-color').value,position:$('#caption-position').value,background:$('#caption-background').checked},chroma:{enabled:$('#chroma-key').value!=='off',key:$('#chroma-key').value==='blue'?'blue':'green',threshold:Number($('#chroma-threshold').value),backgroundColor:$('#chroma-color').value},background:$('#chroma-image').files[0]};}
 async function imageForPreview(blob){if(!blob)return null;if(blob.size>10*1024*1024)throw new Error('Choose a picture under 10 MB.');const image=new Image(),url=URL.createObjectURL(blob);try{image.src=url;await image.decode();return image;}catch{throw new Error('Could not read that image. Try a PNG or JPEG.');}finally{URL.revokeObjectURL(url);}}
 $('#preview-effects').onclick=async()=>{
@@ -311,7 +326,7 @@ $('#export-edit').onclick=async()=>{
     const logo=$('#video-logo').files[0],music=$('#video-music').files[0],effects=effectsOptions();if(logo?.size>10*1024*1024||effects.background?.size>10*1024*1024||music?.size>50*1024*1024)throw new Error('Choose a picture under 10 MB and music under 50 MB.');
     $('#take-player').pause();previewTrimEnd=null;exportController=new AbortController();$('#export-progress').hidden=false;setExportBusy(true);
     const result=await processVideo({blob:selectedBlob,...range,...effects,captions,aspect:$('#video-aspect').value,logo,music,musicVolume:Number($('#music-volume').value)/100,signal:exportController.signal,onProgress:info=>{$('#export-progress progress').value=info.progress;$('#export-progress p').textContent=info.phase==='rendering'?`Creating your copy… ${Math.round(info.progress*100)}%`:'Preparing video…';}});
-    const edited={...take,id:uid(),title:`${take.title} (edited)`,created:Date.now(),duration:result.duration,mimeType:result.mimeType,width:result.width,height:result.height,bytes:result.blob.size,status:'saved',frameRate:undefined,captions:trimCaptions(captions,range.start,range.end),script:undefined};
+    const edited={...take,id:uid(),title:`${take.title} (edited)`,created:Date.now(),duration:result.duration,mimeType:result.mimeType,width:result.width,height:result.height,bytes:result.blob.size,status:'saved',frameRate:undefined,captions:trimCaptions(captions,range.start,range.end),captionStyle:effects.captionStyle,script:undefined};
     try{await saveChunk(edited.id,0,result.blob);await saveTake(edited);}catch{edited.warning='Device storage could not keep this edited take. Save or share it now.';}
     exportController=null;await openTake(edited,result.blob);toast('Edited copy ready. Original kept.');
   }catch(e){if(e.code!=='ABORTED'&&e.name!=='AbortError')message('Could not create edited copy',e.message);else toast('Processing cancelled. Original kept.');}

@@ -1,7 +1,7 @@
 /** Local-only script import. Render returned strings via textContent/value, never innerHTML. */
 import { unzipSync } from './vendor/fflate.mjs';
 
-export const SCRIPT_FILE_ACCEPT = '.txt,.md,.markdown,.docx,.pdf,.rtf,text/plain,text/markdown,application/pdf,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+export const SCRIPT_FILE_ACCEPT = '.txt,.md,.markdown,.doc,.docx,.pdf,.rtf,.gdoc,application/msword,text/plain,text/markdown,application/pdf,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const IMPORT_LIMITS = Object.freeze({ maxBytes: 15 * 1024 * 1024, maxCharacters: 500_000, maxPdfPages: 200, maxDocxXmlBytes: 5 * 1024 * 1024 });
 
 export class ScriptImportError extends Error {
@@ -217,14 +217,22 @@ export async function importScriptFile(file) {
   if (file.size === 0) throw fail('EMPTY_FILE', 'This file is empty. Choose a file that contains your script.');
   if (file.size > IMPORT_LIMITS.maxBytes) throw fail('FILE_TOO_LARGE', 'This file is larger than 15 MB. Export only the script text, or split it into smaller files.');
   const extension = file.name.split('.').pop().toLowerCase();
-  if (extension === 'doc') throw fail('LEGACY_DOC', 'Older .doc files are not supported. Open it in Word or Pages, save as .docx, then import that copy.');
-  if (!['txt', 'md', 'markdown', 'docx', 'pdf', 'rtf'].includes(extension)) throw fail('UNSUPPORTED_TYPE', 'Choose a TXT, Markdown, DOCX, PDF, or RTF file. For Pages documents, export a DOCX copy first.');
+  if (extension === 'gdoc') throw fail('GOOGLE_DOC_SHORTCUT', 'This is a Google Docs shortcut, not the script itself. Open the document in Google Docs, export a Word (.docx) or TXT copy, then import that file. You can also copy and paste the script.');
+  if (!['txt', 'md', 'markdown', 'doc', 'docx', 'pdf', 'rtf'].includes(extension)) throw fail('UNSUPPORTED_TYPE', 'Choose a TXT, Markdown, DOC, DOCX, PDF, or RTF file. For Pages documents, export a DOCX copy first.');
   let bytes;
   try { bytes = new Uint8Array(await file.arrayBuffer()); }
   catch (error) { throw fail('READ_FAILED', 'This file could not be opened. If it is in iCloud Drive, download it in Files first, then try again.', error); }
   try {
     let raw;
-    if (extension === 'docx') raw = readDocx(bytes);
+    if (extension === 'doc') {
+      // Word also writes RTF documents carrying the .doc extension.
+      if (new TextDecoder('ascii').decode(bytes.subarray(0, 12)).startsWith('{\\rtf')) raw = readRtf(bytes);
+      else {
+        try { const { readLegacyDoc } = await import('./legacy-doc.mjs'); raw = await readLegacyDoc(bytes); }
+        catch (error) { throw fail(error?.code || 'DOC_ENGINE_UNAVAILABLE', error?.code ? error.message : 'The DOC importer could not load. Reopen the app online once, or save the script as DOCX.', error); }
+      }
+    }
+    else if (extension === 'docx') raw = readDocx(bytes);
     else if (extension === 'pdf') raw = await readPdf(bytes);
     else if (extension === 'rtf') raw = readRtf(bytes);
     else raw = decodeText(bytes);

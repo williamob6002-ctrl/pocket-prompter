@@ -1,7 +1,11 @@
 [
   "THIRD_PARTY_NOTICES.md",
   "import-script.mjs",
+  "legacy-doc-worker.js",
+  "legacy-doc.mjs",
   "vendor/LICENSE-fflate.txt",
+  "vendor/docToText.LICENSE",
+  "vendor/docToText.js",
   "vendor/fflate.mjs",
   "vendor/pdfjs/LICENSE.txt",
   "vendor/pdfjs/cmaps/78-EUC-H.bcmap",

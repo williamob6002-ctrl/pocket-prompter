@@ -52,3 +52,20 @@ export async function deleteTake(id) {
     r.onsuccess=()=>{const c=r.result;if(c){s.delete(c.primaryKey);c.continue();}};
   });
 }
+
+/** Patch only an existing take; preserve unrelated metadata and recording chunks. */
+export async function updateTakeMetadata(id, changes) {
+  const d=await db();
+  return new Promise((resolve,reject)=>{
+    const tx=d.transaction('takes','readwrite'),store=tx.objectStore('takes');
+    let updated,failure;
+    tx.oncomplete=()=>resolve(updated);
+    tx.onerror=()=>reject(failure||tx.error||new Error('Could not save take changes.'));
+    tx.onabort=()=>reject(failure||tx.error||new Error('Saving was interrupted.'));
+    const request=store.get(id);
+    request.onsuccess=()=>{
+      if(!request.result){failure=new Error('This take is not saved on this device. Save its video and SRT files instead.');tx.abort();return;}
+      updated={...request.result,...changes,id};store.put(updated);
+    };
+  });
+}

@@ -1,6 +1,14 @@
-# Verification — Pocket Prompter 1.1.0
+# Verification — Pocket Prompter 1.2.0
 
 Checked 25 September 2026. This record distinguishes implemented features, tested browser behavior, and target-device work still needed.
+
+## Version 1.2 checks
+
+- Caption persistence: 22 checks across Chromium and WebKit passed through the actual editor. Saved cues and chosen styles survive close/reload/reopen; style-only and text edits prompt before being discarded. Malformed SRT, injected quota errors and aborted IndexedDB writes preserve old data and allow retry. Saving a deleted take fails without recreating it. Real edited MP4 copies retain the caption style and correctly clipped/rebased timings.
+- Legacy Word DOC importer: 36 checks passed in each browser through file input, isolated worker and rendered output. Three freshly generated Word 97–2003 documents preserve exact source body text, including multilingual text and 1,000 paragraphs. Twenty-one real Word fixtures produced readable text; this is not a full-fidelity claim. Nine malformed/unsupported variants fail clearly and a later valid import recovers. GDOC shortcuts give an export instruction; RTF with a DOC extension works.
+- Final integrated DOC acceptance passed in both engines through the app file chooser: valid import, GDOC guidance, malformed input preserving the current script, successful retry and reload persistence. The same sequence passed after the origin HTTP server was stopped and confirmed unavailable. All 214 cached asset hashes matched the release files in both engines.
+- The release adds four local offline dependencies for DOC extraction. Word 6/95, encrypted documents and unsupported complex files receive a DOCX/TXT fallback; headers, footnotes, text boxes and page layout are outside the supported DOC scope.
+- This is the final bounded test build. Automatic transcription, additional AI models and dedicated network remotes are deferred; they are not represented as implemented or impossible on the web.
 
 ## Version 1.1 checks
 
@@ -61,4 +69,4 @@ Version 1.1 bundles 210 offline assets, including the new processing modules and
 
 ## Published delivery
 
-The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.1 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.
+The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.2 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.
