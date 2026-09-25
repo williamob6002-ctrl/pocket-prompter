@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2342b7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="description" content="A free, private teleprompter. Write a script, practise, record and share. No account, subscription or watermark.">
+  <title>Pocket Prompter</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="workspace">
+    <header class="app-header">
+      <a class="brand" href="./" aria-label="Pocket Prompter home"><img src="./assets/icon.svg" width="36" height="36" alt=""><span>Pocket<br><b>Prompter</b></span></a>
+      <button id="share-app" class="quiet">Share app</button>
+    </header>
+    <main>
+      <section id="scripts-view" class="view" aria-label="Scripts">
+        <div class="page-title"><div><h1>Your scripts</h1><p>Ready when you are.</p></div><button id="new-script" class="primary">+ New</button></div>
+        <div class="writing-room">
+          <aside class="library" aria-label="Script library">
+            <label class="sr-only" for="search">Find a script</label><input type="search" id="search" placeholder="Find a script…">
+            <div id="script-list"></div>
+            <button id="import-script" class="outline full">Import a script</button>
+            <input type="file" id="import-file" accept=".txt,.md,.docx,.pdf,.rtf,.json" hidden>
+          </aside>
+          <section class="editor" aria-label="Script editor">
+            <div class="editor-meta"><span id="save-state" role="status">Saved on this device</span><button id="script-menu" aria-label="Script actions" class="quiet">•••</button></div>
+            <label class="sr-only" for="script-title">Script title</label><input id="script-title" maxlength="160" placeholder="Give your script a title" autocomplete="off">
+            <label class="sr-only" for="script-text">Script text</label><textarea id="script-text" placeholder="Paste or write your script here…" spellcheck="true"></textarea>
+            <div class="editor-footer"><span id="script-stats"></span><button id="format-help" class="text-button">Emphasis tips</button></div>
+            <div class="launch-actions"><button id="read-script" class="outline">Practise reading</button><button id="record-script" class="primary"><span class="record-dot"></span> Record video</button></div>
+          </section>
+        </div>
+        <p class="local-note">Free to use. No account. Your scripts and takes stay on this device.</p>
+      </section>
+      <section id="takes-view" class="view" hidden>
+        <div class="page-title"><div><h1>Your takes</h1><p>Review, save and share your recordings.</p></div></div>
+        <p class="notice">Save important videos to Photos or Files. Clearing website data can remove recordings stored here.</p>
+        <div id="takes-list" class="takes-list"></div>
+      </section>
+      <section id="help-view" class="view help-view" hidden>
+        <div class="page-title"><div><h1>Make yourself at home.</h1><p>A little setup, then you’re ready.</p></div></div>
+        <article class="help-card"><h2>Install on iPhone or iPad</h2><ol><li>Open this app’s link in <b>Safari</b>.</li><li>Open the Share menu and choose <b>Add to Home Screen</b>.</li><li>Keep <b>Open as Web App</b> on, if shown, then tap Add.</li><li>Open the new Pocket Prompter icon once while online.</li></ol><p id="offline-state" role="status">Preparing offline access…</p><p>Install first, then create your scripts inside the installed app. Safari and the Home Screen app may keep separate data; use a script backup to move your work.</p></article>
+        <article class="help-card"><h2>Your first recording</h2><p>Open a script, tap Record video and allow the camera and microphone. Keep the phone upright or sideways as you want the final video. Tap Record; the countdown gives you time to get ready.</p><p>The words appear near the camera for you to read. They are not added to your video. Use Pause to pause the words and the recording together. Finish opens your take, ready to share or save.</p><p>Stay in the app while recording. A call, screen lock or app switch may interrupt the camera; the app stops and saves what it has received.</p></article>
+        <article class="help-card"><h2>Control the words</h2><p>Adjust words per minute, text size, line spacing, reading width, colours and countdown in Reading settings. Drag the text to find your place. Mirroring is available for teleprompter glass.</p><p>With a keyboard or compatible Bluetooth clicker: Space = play/pause, arrows = move or change speed, Home = restart, Escape = leave. In recording mode Space pauses an existing take; use the Record button to begin.</p></article>
+        <article class="help-card"><h2>Keep a copy</h2><p>Scripts save automatically on this device. Import TXT, Markdown, Word (.docx), text-based PDF and RTF files. Scanned PDFs need text recognition elsewhere first.</p><div class="button-row"><button id="backup-scripts" class="outline">Back up scripts</button><button id="restore-scripts" class="outline">Restore backup</button></div><p>Backups contain scripts and reading settings, not videos. Use Save or Share on each take for videos. There are no app-imposed script or recording time limits; available memory and device storage still matter.</p></article>
+        <article class="help-card"><h2>Private, and free</h2><p>No ads, analytics, accounts, subscriptions or watermark. Reading, recording and importing run on your device. After the offline download is ready, these features work without a connection.</p><p>Optional voice following uses your browser’s speech service. It may send audio to its provider and need internet. It is experimental and separate from video recording. It only starts if you choose it.</p><p>This app does not include AI video editing, automatic captions, cloud sync or a floating window over other iPhone apps.</p><p class="version">Version 1.0.0 · <a href="./README.md">App guide and feature checklist</a></p></article>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Main navigation"><button data-view="scripts" aria-current="page">Scripts</button><button data-view="takes">Takes</button><button data-view="help">Install & help</button></nav>
+  </div>
+  <section id="reader" hidden aria-label="Teleprompter">
+    <video id="camera-preview" playsinline autoplay muted></video>
+    <header class="reader-header"><button id="exit-reader" class="reader-button">Close</button><span id="session-status" role="status">Ready</span><button id="reader-settings" class="reader-button" aria-label="Reading settings">Aa / Settings</button></header>
+    <div id="camera-message" class="camera-message" hidden></div>
+    <div id="reading-window"><div id="reading-guide" aria-hidden="true"></div><div id="prompt-scroll" tabindex="0" aria-label="Script; drag to move"><div id="prompt-text"></div></div></div>
+    <div id="countdown-overlay" hidden role="status"></div>
+    <footer class="reader-controls">
+      <div class="reader-info"><span id="elapsed">0:00</span><span id="read-position">0%</span><span id="awake-state"></span></div>
+      <label class="sr-only" for="read-progress">Script position</label><input type="range" id="read-progress" min="0" max="100" step="0.1" value="0">
+      <div class="speed-row"><button id="slower" class="reader-button" aria-label="Read slower">−</button><label for="quick-speed"><b id="speed-label">130</b> words/min</label><input id="quick-speed" type="range" min="40" max="300" step="5" value="130"><button id="faster" class="reader-button" aria-label="Read faster">+</button></div>
+      <div class="transport"><button id="restart-reader" class="reader-button">Restart</button><button id="play-reader" class="play-button">▶ Read</button><button id="record-toggle" class="record-button" hidden>● Record</button><button id="finish-recording" class="reader-button" hidden>Finish</button><button id="fullscreen-reader" class="reader-button" aria-label="Toggle full screen">Full screen</button></div>
+    </footer>
+  </section>
+  <dialog id="settings-dialog" class="sheet"><form method="dialog" class="dialog-heading"><h2>Reading settings</h2><button class="quiet" aria-label="Close settings">Done</button></form>
+    <div class="settings-content">
+      <fieldset><legend>The words</legend>
+        <label>Text size <output id="font-size-output"></output><input type="range" data-setting="fontSize" min="24" max="88" step="2"></label>
+        <label>Line spacing <select data-setting="lineHeight"><option value="1.35">Compact</option><option value="1.6">Comfortable</option><option value="1.9">Spacious</option><option value="2.2">Extra spacious</option></select></label>
+        <label>Reading width <output id="width-output"></output><input type="range" data-setting="width" min="45" max="100" step="5"></label>
+        <label>Typeface <select data-setting="font"><option value="system">System</option><option value="serif">Serif</option><option value="mono">Monospace</option></select></label>
+        <label>Alignment <select data-setting="align"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label>
+        <label>Colours <select data-setting="theme"><option value="dark">White on black</option><option value="light">Black on white</option><option value="yellow">Yellow on black</option><option value="blue">White on blue</option></select></label>
+        <label class="toggle">Reading guide <input type="checkbox" data-setting="guide"></label>
+        <label class="toggle">Mirror horizontally <input type="checkbox" data-setting="mirrorX"></label>
+        <label class="toggle">Flip vertically <input type="checkbox" data-setting="mirrorY"></label>
+      </fieldset>
+      <fieldset><legend>Playback</legend>
+        <label>Countdown <select data-setting="countdown"><option value="0">Off</option><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="10">10 seconds</option></select></label>
+        <label class="toggle">Loop when practising <input type="checkbox" data-setting="loop"></label>
+        <label class="toggle">Keep screen awake <input type="checkbox" data-setting="keepAwake"></label>
+        <label class="toggle">Follow my voice (practice only) <input type="checkbox" data-setting="voice"></label>
+        <p class="hint" id="voice-help">Experimental. Uses your browser’s speech service, which may send audio to its provider and require internet. Fixed-speed reading is fully offline.</p>
+        <label>Voice language <select data-setting="language"><option value="en-GB">English (UK)</option><option value="en-US">English (US)</option><option value="es-ES">Spanish</option><option value="fr-FR">French</option><option value="de-DE">German</option><option value="it-IT">Italian</option></select></label>
+      </fieldset>
+      <fieldset id="camera-settings"><legend>Camera</legend>
+        <label>Camera <select data-setting="facing"><option value="user">Front</option><option value="environment">Back</option></select></label>
+        <label>Video quality <select data-setting="quality"><option value="720">720p</option><option value="1080">1080p</option><option value="2160">4K, if available</option></select></label>
+        <label>Text panel height <select data-setting="panelHeight"><option value="45">Compact</option><option value="60">Medium</option><option value="80">Tall</option></select></label>
+        <label>Text background <input type="range" data-setting="opacity" min="20" max="95" step="5"></label>
+        <div id="device-camera-controls"></div>
+        <p class="hint">Actual resolution depends on your camera and browser. Preview is mirrored for the front camera; the saved video is not. Camera and quality changes apply before the next take.</p>
+      </fieldset>
+    </div>
+  </dialog>
+  <dialog id="actions-dialog" class="small-dialog"><form method="dialog" class="dialog-heading"><h2>Script actions</h2><button class="quiet">Done</button></form><div class="action-list"><button id="duplicate-script">Duplicate</button><button id="export-script">Save as text</button><button id="share-script">Share script</button><button id="delete-script" class="danger">Delete script</button></div></dialog>
+  <dialog id="take-dialog" class="take-dialog"><form method="dialog" class="dialog-heading"><h2 id="take-title">Your take</h2><button class="quiet">Done</button></form><video id="take-player" controls playsinline preload="metadata"></video><p id="take-meta"></p><div class="button-row"><button id="share-take" class="primary">Share / Save video</button><button id="download-take" class="outline">Download</button></div><p class="hint">On iPhone, choose Save Video in the share sheet to keep it in Photos, or Save to Files. If sharing is unavailable, use Download.</p>
+    <details id="edit-take"><summary>Trim, captions & extras</summary><div class="video-editor">
+      <div class="trim-fields"><label>Start (seconds)<input id="trim-start" type="number" min="0" step="0.1" value="0"></label><label>End (seconds)<input id="trim-end" type="number" min="0.1" step="0.1"></label></div>
+      <div class="button-row"><button id="set-trim-start" class="outline">Start here</button><button id="set-trim-end" class="outline">End here</button><button id="preview-trim" class="outline">Preview selection</button></div>
+      <label>Video shape<select id="video-aspect"><option value="original">Original</option><option value="9:16">Portrait (9:16)</option><option value="16:9">Landscape (16:9)</option><option value="1:1">Square</option></select></label><p class="hint">Changing shape crops the centre of the video.</p>
+      <label>Logo or picture (optional)<input type="file" id="video-logo" accept="image/png,image/jpeg,image/webp"></label>
+      <label>Background music (optional)<input type="file" id="video-music" accept="audio/*"></label><label>Music volume<input id="music-volume" type="range" min="0" max="50" step="1" value="15"></label>
+      <h3>Captions</h3><p class="hint">Create a draft from your script, or import an SRT caption file. Draft timings are estimates, not speech recognition: edit the words and times while reviewing your video.</p>
+      <div class="button-row"><button id="draft-captions" class="outline">Draft from script</button><button id="import-captions" class="outline">Import SRT</button><button id="export-captions" class="outline">Save SRT</button></div><input type="file" id="captions-file" accept=".srt" hidden>
+      <label for="caption-text">Caption text and timings (SRT)</label><textarea id="caption-text" rows="7" placeholder="1&#10;00:00:00,000 --> 00:00:03,000&#10;Your first caption"></textarea>
+      <label class="inline-check"><input id="burn-captions" type="checkbox"> Add these captions to the video</label>
+      <button id="export-edit" class="primary full">Create edited copy</button><p class="hint">The original stays safe. Editing support varies: some Safari versions cannot export with reliable timing. The app checks each export and reports a failure if needed. Processing runs on this device and takes about the selected video’s length. Keep this screen open. The edited copy has no watermark.</p>
+      <div id="export-progress" hidden><progress max="1" value="0"></progress><p role="status"></p><button id="cancel-export" class="outline">Cancel processing</button></div>
+    </div></details><button id="delete-take" class="text-button danger">Delete this take</button></dialog>
+  <dialog id="message-dialog" class="small-dialog"><h2 id="message-title"></h2><p id="message-body"></p><form method="dialog"><button class="primary">OK</button></form></dialog>
+  <div id="toast" role="status" hidden></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
