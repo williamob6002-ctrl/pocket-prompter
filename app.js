@@ -4,6 +4,9 @@ import {VoiceFollower} from './voice-follow.js';
 import {exportAudio} from './audio-export.js';
 import {AudioMonitor} from './audio-monitor.js';
 import {setupAutomaticCaptions} from './automatic-captions.js';
+import {prepareVideoFile, canShareVideo, shareVideoFile} from './video-share.js';
+import {setupProjectBuilder} from './project-builder-ui.js';
+import {getProjectGuidance} from './project-builder.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -29,7 +32,8 @@ let stream=null,recorder=null,recordInfo=null,chunkQueue=Promise.resolve(),recor
 let recordingStarting=false,recordSegmentActive=false;
 function accumulateRecording(){if(recordSegmentActive){recordAccum+=(performance.now()-recordStarted)/1000;recordSegmentActive=false;}}
 let stopPromise=null,resolveStop=null,recordStarted=0,recordAccum=0,sessionElapsed=0,lastFrame=0,scrollPosition=0,wakeLock=null,voiceFollower=null;
-let selectedTake=null,selectedBlob=null,takeURL=null,cameraRequest=0,captionDirty=false,trimEndEdited=false;
+let selectedTake=null,selectedBlob=null,selectedVideoFile=null,takeURL=null,cameraRequest=0,captionDirty=false,trimEndEdited=false;
+const isAppleMobile=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 let exportController=null,previewTrimEnd=null,finishAt=0,audioExportBusy=false;
 let soundDetected=false,monitorReady=false;
 function setTextIfChanged(selector,text){const element=$(selector);if(element.textContent!==text)element.textContent=text;}
@@ -52,7 +56,16 @@ function save(){
   try{localStorage.setItem(STORE,JSON.stringify(data));$('#save-state').textContent='Saved on this device';return true;}
   catch(e){$('#save-state').textContent='Not saved — device storage is full or unavailable';return false;}
 }
-function stats(){const words=wordCount(current.text);$('#script-stats').textContent=`${words} words · about ${clock(words/settings.wpm*60)}`;$('#read-script').disabled=!words;$('#record-script').disabled=!words;}
+function stats(){const words=wordCount(current.text);$('#script-stats').textContent=`${words} words · about ${clock(Math.ceil(words/settings.wpm*60))}`;$('#read-script').disabled=!words;$('#record-script').disabled=!words;updateCoach();}
+function updateCoach(){
+  const target=[60,120,180,300].includes(current.targetSeconds)?current.targetSeconds:0;
+  $('#target-duration').value=String(target);
+  const guidance=getProjectGuidance(current.text,target,settings.wpm);
+  $('#coach-summary').textContent=guidance.wordCount?`About ${clock(guidance.estimatedSeconds)}`:'Start with your ideas';
+  const list=$('#coach-tips');list.replaceChildren();
+  for(const tip of guidance.tips){const item=document.createElement('li');item.textContent=tip.message;list.append(item);}
+}
+$('#target-duration').onchange=e=>{current.targetSeconds=Number(e.target.value);current.updated=Date.now();save();updateCoach();};
 function renderLibrary(){
   const list=$('#script-list');list.replaceChildren();
   const query=$('#search').value.toLowerCase();
@@ -61,7 +74,7 @@ function renderLibrary(){
   if(!matches.length){const p=document.createElement('p');p.className='hint';p.textContent='No matching scripts.';list.append(p);}
 }
 function selectScript(id){current=data.scripts.find(s=>s.id===id);data.activeId=id;$('#script-title').value=current.title;$('#script-text').value=current.text;stats();renderLibrary();save();}
-function newScript(title='Untitled script',text=''){const script={id:uid(),title,text,updated:Date.now()};data.scripts.unshift(script);$('#search').value='';selectScript(script.id);showView('scripts');if(!text)$('#script-title').focus();return script;}
+function newScript(title='Untitled script',text='',targetSeconds=0){const script={id:uid(),title,text,updated:Date.now(),targetSeconds:[60,120,180,300].includes(targetSeconds)?targetSeconds:0};data.scripts.unshift(script);$('#search').value='';selectScript(script.id);showView('scripts');if(!text)$('#script-title').focus();return script;}
 async function showView(view){activeView=view;for(const section of $$('.view'))section.hidden=section.id!==`${view}-view`;for(const b of $$('.bottom-nav button')){if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}if(view==='takes')await renderTakes();window.scrollTo(0,0);}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function shareFile(blob,name,title){const file=new File([blob],name,{type:blob.type});if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title});return true;}download(blob,name);return false;}
@@ -72,7 +85,7 @@ $('#script-title').oninput=e=>{current.title=e.target.value;current.updated=Date
 $('#script-text').oninput=e=>{current.text=e.target.value;current.updated=Date.now();save();stats();renderLibrary();};
 for(const button of $$('.bottom-nav button'))button.onclick=()=>showView(button.dataset.view);
 $('#script-menu').onclick=()=>$('#actions-dialog').showModal();
-$('#duplicate-script').onclick=()=>{$('#actions-dialog').close();newScript(`${current.title} (copy)`,current.text);toast('Copy created');};
+$('#duplicate-script').onclick=()=>{$('#actions-dialog').close();newScript(`${current.title} (copy)`,current.text,current.targetSeconds);toast('Copy created');};
 $('#export-script').onclick=()=>download(new Blob([plainText(current.text)],{type:'text/plain;charset=utf-8'}),`${fileName(current.title)}.txt`);
 $('#share-script').onclick=async()=>{try{await shareFile(new Blob([plainText(current.text)],{type:'text/plain'}),`${fileName(current.title)}.txt`,current.title);}catch(e){if(e.name!=='AbortError')message('Could not share',e.message);}};
 $('#delete-script').onclick=()=>{if(!confirm(`Delete “${current.title||'Untitled script'}”? This cannot be undone.`))return;data.scripts=data.scripts.filter(s=>s.id!==current.id);$('#actions-dialog').close();if(!data.scripts.length)newScript();else selectScript(data.scripts[0].id);toast('Script deleted');};
@@ -88,7 +101,7 @@ $('#import-file').onchange=async e=>{
       if(file.size>20*1024*1024)throw new Error('This backup is too large. Choose a Pocket Prompter backup under 20 MB.');
       const backup=JSON.parse(await file.text());
       if(backup.app!=='pocket-prompter'||backup.version!==1||!Array.isArray(backup.scripts)||backup.scripts.length>1000||backup.scripts.some(s=>typeof s.title!=='string'||typeof s.text!=='string'||s.text.length>500000))throw new Error('Choose a valid Pocket Prompter script backup.');
-      let count=0;for(const s of backup.scripts){if(data.scripts.some(old=>old.title===s.title&&old.text===s.text))continue;data.scripts.push({id:uid(),title:s.title.slice(0,160),text:s.text,updated:Date.now()});count++;}
+      let count=0;for(const s of backup.scripts){if(data.scripts.some(old=>old.title===s.title&&old.text===s.text))continue;data.scripts.push({id:uid(),title:s.title.slice(0,160),text:s.text,updated:Date.now(),targetSeconds:[60,120,180,300].includes(s.targetSeconds)?s.targetSeconds:0});count++;}
       if(backup.settings && typeof backup.settings==='object'){for(const key of Object.keys(defaults)){if(typeof backup.settings[key]===typeof defaults[key])settings[key]=backup.settings[key];}normaliseSettings();}
       const persisted=save();renderLibrary();stats();if(persisted)toast(`${count} scripts restored. Existing scripts kept.`);else message('Restored for this session only','Device storage could not save the restored scripts. Back them up now before closing the app. Existing saved scripts have not been replaced.');return;
     }
@@ -256,15 +269,47 @@ async function renderTakes(){
   }catch{const p=document.createElement('p');p.className='notice';p.textContent='Recordings storage is unavailable. Check available device storage and use normal browsing, rather than private browsing.';container.append(p);}
 }
 async function openTake(take,blob){
-  try{selectedTake=take;selectedBlob=blob||await takeBlob(take);if(takeURL)URL.revokeObjectURL(takeURL);takeURL=URL.createObjectURL(selectedBlob);$('#take-player').src=takeURL;$('#take-title').textContent=take.title;$('#take-meta').textContent=take.warning||`${clock(take.duration)} · ${(selectedBlob.size/1024/1024).toFixed(1)} MB · ${take.width||'?'}×${take.height||'?'} · ${selectedBlob.type.includes('mp4')?'MP4':'WebM'}${take.status==='recording'?' · Interrupted recording; playback may be incomplete':''}`;$('#trim-start').value=0;trimEndEdited=false;$('#trim-end').value=(take.duration||0).toFixed(1);$('#caption-text').value=take.captions?toSrt(take.captions):'';captionDirty=false;$('#caption-save-state').textContent=take.captions?.length?'Captions saved with this take.':'Caption edits can be kept with this take.';$('#burn-captions').checked=false;$('#video-aspect').value='original';$('#video-logo').value='';$('#video-music').value='';resetEffects();restoreCaptionStyle(take.captionStyle);$('#edit-take').open=false;$('#export-progress').hidden=true;previewTrimEnd=null;$('#take-dialog').showModal();automaticCaptions.refresh();}
+  try{selectedTake=take;selectedBlob=blob||await takeBlob(take);if(takeURL)URL.revokeObjectURL(takeURL);takeURL=URL.createObjectURL(selectedBlob);$('#take-player').src=takeURL;$('#take-title').textContent=take.title;$('#take-meta').textContent=take.warning||`${clock(take.duration)} · ${(selectedBlob.size/1024/1024).toFixed(1)} MB · ${take.width||'?'}×${take.height||'?'} · ${selectedBlob.type.includes('mp4')?'MP4':'WebM'}${take.status==='recording'?' · Interrupted recording; playback may be incomplete':''}`;$('#trim-start').value=0;trimEndEdited=false;$('#trim-end').value=(take.duration||0).toFixed(1);$('#caption-text').value=take.captions?toSrt(take.captions):'';captionDirty=false;$('#caption-save-state').textContent=take.captions?.length?'Captions saved with this take.':'Caption edits can be kept with this take.';$('#burn-captions').checked=false;$('#video-aspect').value='original';$('#video-logo').value='';$('#video-music').value='';resetEffects();restoreCaptionStyle(take.captionStyle);$('#edit-take').open=false;$('#export-progress').hidden=true;previewTrimEnd=null;prepareTakeSharing();$('#take-dialog').showModal();automaticCaptions.refresh();}
   catch(e){message('Could not open take',`${e.message}\nAn interrupted recording may not have saved enough data. You can remove empty takes from the list.`);}
 }
 function canLeaveTake(){if(automaticCaptions.isBusy()){toast('Use Cancel captions before closing.');return false;}return !captionDirty||confirm('Leave without keeping your caption edits? Use Keep captions with this take to save them.');}
 $('#take-dialog .dialog-heading').addEventListener('submit',e=>{if(!canLeaveTake())e.preventDefault();});
 $('#take-dialog').addEventListener('cancel',e=>{if(exportController){e.preventDefault();toast('Use Cancel processing before closing.');}else if(!canLeaveTake())e.preventDefault();});
-$('#take-dialog').addEventListener('close',()=>{automaticCaptions.dispose();exportController?.abort();$('#take-player').pause();$('#take-player').removeAttribute('src');$('#take-player').load();if(takeURL){URL.revokeObjectURL(takeURL);takeURL=null;}selectedBlob=null;selectedTake=null;if(activeView==='takes')renderTakes();});
-$('#share-take').onclick=async()=>{if(!selectedBlob)return;try{const shared=await shareFile(selectedBlob,`${fileName(selectedTake.title)}.${selectedBlob.type.includes('mp4')?'mp4':'webm'}`,selectedTake.title);if(!shared)toast('Video download started');}catch(e){if(e.name!=='AbortError')message('Could not share video',`${e.message}\nTry the Download button instead.`);}};
-$('#download-take').onclick=()=>{if(selectedBlob)download(selectedBlob,`${fileName(selectedTake.title)}.${selectedBlob.type.includes('mp4')?'mp4':'webm'}`);};
+$('#take-dialog').addEventListener('close',()=>{automaticCaptions.dispose();exportController?.abort();$('#take-player').pause();$('#take-player').removeAttribute('src');$('#take-player').load();if(takeURL){URL.revokeObjectURL(takeURL);takeURL=null;}selectedBlob=null;selectedVideoFile=null;selectedTake=null;if(activeView==='takes')renderTakes();});
+function shareInstructions(){
+  if(isAppleMobile&&selectedVideoFile?.type==='video/mp4')return 'Opens the iPhone share menu. Scroll through its actions and choose Save Video to add this take to Photos.';
+  if(isAppleMobile)return 'This take is WebM. Use Share video or Download file; Photos may not accept this format. New recordings use MP4 when your browser supports it.';
+  return 'Share the video with an app, or choose Download file to keep a copy on this device.';
+}
+function prepareTakeSharing(){
+  selectedVideoFile=null;$('#share-take').disabled=false;
+  try{selectedVideoFile=prepareVideoFile(selectedBlob,selectedTake.title);}catch{}
+  $('#share-take').disabled=!selectedVideoFile;
+  const photos=isAppleMobile&&selectedVideoFile?.type==='video/mp4';
+  $('#share-take').textContent=photos?'Save to Photos':'Share video';
+  const supported=selectedVideoFile&&canShareVideo(selectedVideoFile).supported;
+  $('#share-status').textContent=supported?shareInstructions():isAppleMobile?'This browser cannot share the video directly. Download file keeps it in Files. In Files, open the video, tap Share, then choose Save Video if available.':'Sharing is unavailable in this browser. Use Download file to keep your video.';
+}
+$('#share-take').onclick=async()=>{
+  const file=selectedVideoFile;if(!file)return;
+  try{
+    // No awaited preparation before the native call: preserve the tap gesture.
+    const completion=shareVideoFile(file);
+    $('#share-take').disabled=true;$('#share-status').textContent=isAppleMobile?'In the share menu, choose Save Video for Photos.':'Choose where to share your video.';
+    await completion;
+    if(selectedVideoFile===file)$('#share-status').textContent=isAppleMobile?'Share menu closed. If you chose Save Video, your take is in Photos. You can share it again any time.':'Share menu closed. Your original take is still here.';
+  }catch(e){
+    if(selectedVideoFile!==file)return;
+    if(e.name==='AbortError')$('#share-status').textContent='Sharing cancelled. Your take is still here. '+shareInstructions();
+    else $('#share-status').textContent=isAppleMobile?'The iPhone share menu could not open for this video. Nothing was downloaded. Try again, or choose Download file, then open it in Files → Share → Save Video if available.':'The video could not be shared. Nothing was downloaded. Try again or choose Download file.';
+  }finally{if(selectedVideoFile===file)$('#share-take').disabled=false;}
+};
+$('#download-take').onclick=()=>{
+  if(!selectedBlob)return;
+  if(selectedVideoFile)download(selectedVideoFile,selectedVideoFile.name);
+  else download(selectedBlob,`${fileName(selectedTake.title)}.${selectedBlob.type.includes('mp4')?'mp4':'webm'}`);
+  $('#share-status').textContent=isAppleMobile?'Download started as a file. To add it to Photos, open it in Files, tap Share and choose Save Video if available.':'Video file download started. Your original take is still here.';
+};
 $('#delete-take').onclick=async()=>{if(!selectedTake||!confirm('Delete this take from this device? Saved copies in Photos or Files will remain.'))return;try{await deleteTake(selectedTake.id);$('#take-dialog').close();toast('Take deleted');}catch(e){message('Could not delete',e.message);}};
 
 $('#take-player').addEventListener('loadedmetadata',()=>{const duration=$('#take-player').duration;if(Number.isFinite(duration)&&duration>0){if(!trimEndEdited)$('#trim-end').value=duration.toFixed(2);$('#trim-start').max=duration;$('#trim-end').max=duration;}});
@@ -345,5 +390,6 @@ async function setupOffline(){
   try{const registration=await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;$('#offline-state').textContent='Ready for offline use. Open the Home Screen app once while online too.';registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)toast('An update is ready. Close all app windows, then reopen.');});});}
   catch{$('#offline-state').textContent='Offline download did not finish. Reopen while online to try again.';}
 }
+setupProjectBuilder({onUse:draft=>{newScript(draft.title,draft.text);toast('Your script is ready. Make it sound like you, then practise.');},getWpm:()=>settings.wpm});
 selectScript(current.id);setupOffline();
 if(storageError)message('Saved scripts need attention','The stored script library could not be read. Existing storage has not been overwritten. Back up any recovered text before clearing website data.');

@@ -8,17 +8,22 @@ Open the published app link in Safari. Choose Share → Add to Home Screen, leav
 
 ## Read and record
 
-1. Create a script or import a document. Scripts save automatically on this device.
+1. Create a script, import a document, or choose **Turn your ideas into a school script**. Four guided project types arrange your own notes into an editable spoken draft without inventing facts. Scripts save automatically on this device.
 2. Choose **Practise reading** or **Record video**.
 3. Use **Aa / Settings** to set text size, reading width, colours, mirroring, speed and countdown.
 4. In recording mode allow both camera and microphone, then tap **Record**. The scrolling words are not included in the recording.
-5. Pause pauses both the take and the words. Finish saves the take and opens playback. **Share / Save video** opens the system share sheet where supported; **Download** is the fallback.
+5. Pause pauses both the take and the words. Finish saves the take and opens playback. On iPhone, **Save to Photos** opens the system share menu: choose **Save Video** there. The app shares the video alone, in its original format. It cannot choose the destination or silently write to Photos.
 6. Save important recordings in Photos or Files. Browser storage is not a permanent backup.
+
+**Download file** is a separate action and saves a file, not a Photos entry. If the share menu is unavailable, the app explains this instead of silently downloading. On iPhone you can open the downloaded video in Files and use Share → Save Video when that action is available. A WebM recording is never relabelled as MP4; Photos compatibility depends on the actual format and device.
+
+Open **Get ready to present** below your script for a time limit, word-count guidance and rehearsal suggestions. These are estimates based on the chosen reading speed, not a speaking assessment. Practise aloud to check your actual delivery.
 
 ## Feature checklist
 
 | Area | Included | Boundary |
 |---|---|---|
+| School projects | Guided topic talk, science experiment, book review and argument; editable draft from the writer's own notes; saved unfinished notes; optional time limit and rehearsal tips | Does not generate or verify facts. Unfinished builder notes stay on this device and are not included in script backups; use the draft as a script to include it. Timing is an estimate, not a grade. |
 | Scripts | Create, edit, autosave, search, duplicate, delete; bold/highlight cues; word/time estimate; text sharing; backup/restore | Stored on this device; no cloud account or live sync |
 | Import | TXT, MD, DOC, DOCX, text PDF, basic RTF; iCloud/Files documents through the system picker | 15 MB per document; 200 PDF pages; 500,000 characters; Word 97–2003 DOC body text only (no headers, footnotes or text boxes); no OCR; complex layouts may flatten; GDOC shortcuts must be exported as DOCX/TXT |
 | Reading | 40–300 words/min, touch seek, progress, pause/resume, restart, start/finish countdown, loop, timer | Speed is an average based on total script length and layout |
@@ -27,7 +32,7 @@ Open the published app link in Safari. Choose Share → Add to Home Screen, leav
 | Sound assistance | Live microphone level, adjustable silence threshold and hold time; waits during silence while video continues | Detects sound, not script words; noise can keep scrolling active; manual Pause still pauses both |
 | Voice following | Experimental browser speech recognition with actual script-word matching | Practice only; browser availability varies; may send audio to provider and need internet; not offline PromptSmart parity |
 | Recording | Front/back camera preference, microphone, pause/resume, multiple takes, 720p/1080p/4K and 24/25/30/60 fps preferences; device-exposed zoom/exposure/focus controls; MP4 preferred with WebM fallback | Actual format/resolution depends on device/browser; keep app open; no app-imposed duration limit, but device resources apply |
-| Review/export | Local take library, playback, download, system file sharing and trimmed WAV audio export | Physical iPhone Photos/share destinations need target-device confirmation |
+| Review/export | Local take library, playback, explicit Photos/share action, separate file download and trimmed WAV audio export | User confirmed a phone recording and file download worked. The revised Save Video → Photos path still needs target-device confirmation; web sharing cannot report the chosen destination. |
 | Editing | Trim, centre crop, picture/logo, titles, background music mix, green/blue-screen replacement with colour or picture, appearance preview; creates separate copy | Exports run in real time, up to 30 fps, and must stay foreground. Choose original resolution, up to 1080p or 720p. Full-file audio decoding uses memory; long/high-resolution exports need a capable device. Timing and dimensions are checked before saving; a browser failure keeps the original. Browser-encoded colour metadata can be interpreted differently by other players. Chroma key needs an evenly lit coloured background; no beauty filters or advanced timeline |
 | Captions | Optional English speech transcription; import/edit SRT; save caption text and style with a take; estimated script drafts; trim-adjusted SRT export; burned-in captions with size, colour, position and background styling | Automatic tools need an explicit ~66 MB download, then run offline. Select up to 10 minutes from a source under 100 MB/15 minutes. These are experimental resource limits, not proven iPhone capacity. Review all words and timings; script-based drafts use estimated timing. |
 | Offline/privacy | App shell, fonts/parsers, reading, editing and camera recording run locally; no analytics | Initial HTTPS download required; optional voice service and system sharing are external; the host receives normal page requests |

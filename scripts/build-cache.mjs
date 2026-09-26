@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 const root=fileURLToPath(new URL('../',import.meta.url));
-const files=['index.html','style.css','app.js','storage.js','voice-follow.js','video-processing.js','audio-monitor.js','audio-export.js','visual-effects.js','automatic-captions.js','transcription-audio.js','asr/local-asr.js','asr/asr-engine.js','asr/asset-manifest.js','asr/README.md','asr/HANDOFF.md','manifest.webmanifest','README.md','BENCHMARK.md','VERIFICATION.md'];
+const files=['index.html','style.css','app.js','storage.js','voice-follow.js','video-processing.js','audio-monitor.js','audio-export.js','visual-effects.js','automatic-captions.js','transcription-audio.js','video-share.js','project-builder.js','project-builder-ui.js','asr/local-asr.js','asr/asr-engine.js','asr/asset-manifest.js','asr/README.md','asr/HANDOFF.md','manifest.webmanifest','README.md','BENCHMARK.md','VERIFICATION.md'];
 async function collect(directory){for(const entry of await readdir(path.join(root,directory),{withFileTypes:true})){const name=path.posix.join(directory,entry.name);if(entry.isDirectory())await collect(name);else if(!entry.name.startsWith('.'))files.push(name);}}
 await collect('assets');
 await collect('docs');

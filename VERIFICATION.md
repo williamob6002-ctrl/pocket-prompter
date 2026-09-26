@@ -1,14 +1,26 @@
-# Verification — Pocket Prompter 1.3.0
+# Verification — Pocket Prompter 1.4.0
 
 Updated 26 September 2026. This record distinguishes implemented features, tested browser behavior, and target-device work still needed.
 
-## Test-build handoff
+## Version 1.4 checks
 
-Version 1.3 is the current test build. Versions 1.2 and 1.3 are the two functional releases made after the request to finish within five rebuilds. The final handoff updates documentation and its offline cache only; it adds no experimental feature or model download.
+User feedback confirmed that a phone recording worked and downloaded as a file. The device model, iOS version, browser/installed mode and export button used have not been established. This is useful real-device recording evidence, not confirmation of Photos saving.
+
+- **Photos/share correction:** video sharing now sends only the video File, with its actual container MIME and matching extension. Previously it included a title, which current WebKit adds as a separate native share item, and silently downloaded when sharing was unavailable. The revised Photos/share action never downloads as a fallback; Download file is separate. Cancellation and share errors preserve the take. The app explains that the user must choose Save Video and never claims to know the chosen destination. [WebKit implementation](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/Cocoa/WKShareSheet.mm), [Web Share API](https://www.w3.org/TR/web-share/#share-method).
+- **Integrated share checks:** 14 cases in each of Chromium and WebKit passed through the actual Takes UI with a real H.264/AAC MP4 and supplied native-share doubles. They verified identical video bytes, canonical MIME/filename, files-only payload, active user gesture, pending state, cancellation, errors, missing APIs, no silent download, explicit download, reopen persistence and stale-promise isolation. These checks do not exercise the physical iOS share sheet or Photos library.
+- **School-project builder:** four guided forms arrange supplied notes into an editable script; they do not generate or verify facts. Fourteen workflow/failure cases in each browser passed: preview/revise/create/reload for each template, exact fact preservation, literal HTML text safety, separate scripts, note recovery across templates/reloads, whitespace-required validation, time-limit persistence, unlimited-time guidance and truthful quota-failure messages. Five independent module tests cover input limits, Unicode/newlines, omitted sections and timing/clarity advice.
+- **Mobile presentation:** the script, builder, reader and take review were visually inspected at 390×844, 320×568, landscape and desktop sizes. Controls are at least 48 px; form text is at least 16 px to avoid small-input zoom. Practice and Record are visible without scrolling at 390×844; smaller screens can scroll. No horizontal overflow was observed. Camera-layout checks simulated the controls and do not establish physical camera performance.
+- **Recording regression:** with the final app markup, desktop Chromium and WebKit completed record → pause → resume → finish → download → reload → reopen/play using generated moving video and an audio tone. Both exported H.264/AAC MP4 files of about 3.7 seconds with no application JavaScript errors. This confirms the integration retains the recording journey; it is not new physical-camera evidence.
+- **Offline builder:** both browsers loaded a fresh document after the origin server rejected all HTTP, then completed notes → preview → script → two-minute target → reload. Script, target and original builder notes survived. The three new runtime modules came from the service-worker cache with matching hashes; no application network access, uploads or optional model downloads occurred. The release contains 224 mandatory offline assets.
+- **Delivery boundary:** Save Video → Photos still requires confirmation on the user's iPhone. A web app cannot silently add media to Photos or identify the chosen native-share destination. Remaining paid-app differences in README/BENCHMARK still apply; this is not a claim of complete native-app parity or a measured quality grade.
+
+## Earlier test-build handoff
+
+Versions 1.2 and 1.3 were the first two functional releases after the request to finish within five rebuilds. A third publication updated documentation and its offline cache only. Version 1.4 is the fourth publication in that allowance, responding to the user's real-device feedback.
 
 The published 1.3 files matched the release commit by SHA-256. A fresh desktop WebKit journey on the public URL downloaded the optional caption pack, transcribed actual speech from an MP4, and saved/reopened the captions. No application JavaScript errors, off-origin model requests or audio uploads were observed.
 
-Further feature expansion is deferred until the target iPhone/iPad has been tested. The remaining phone checks below are unresolved; the delivered app is ready for that test, not claimed to have complete paid-app parity.
+At the 1.3 handoff, further expansion was deferred pending target-device feedback. The user subsequently confirmed recording/file download and requested a better Photos experience and more useful school-project workflow. Version 1.4 addresses those areas. Remaining phone checks below are unresolved; complete paid-app parity is not claimed.
 
 ### Additional feasibility checks
 
@@ -80,7 +92,7 @@ Corrupt saved data is preserved rather than overwritten. Quota-failed restores r
 5. Check portrait and landscape, screen-awake behavior, camera permissions and an interrupted take on that particular device.
 6. Try optional voice following only after reviewing the browser-service notice. Its recognition quality and whether editing exports work are device-dependent.
 
-No physical iPhone/iPad, Photos library or school upload account was available during this run. These steps have **not** been claimed as tested.
+No physical iPhone/iPad, Photos library or school upload account was available to the agent. The user subsequently confirmed recording and file download worked; other steps and the revised Photos flow have **not** been claimed as physically tested.
 
 ## Runtime and cost
 
@@ -92,4 +104,4 @@ Version 1.1 bundles 210 offline assets, including the new processing modules and
 
 ## Published delivery
 
-The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.3 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.
+The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.4 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.

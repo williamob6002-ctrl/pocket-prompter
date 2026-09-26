@@ -57,17 +57,18 @@ Official implementation evidence:
 - SpeechRecognition has limited browser coverage; some implementations use remote processing and fail offline. [MDN SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
 - Arbitrary HTML picture-in-picture is documented as a desktop Chrome feature; ordinary video picture-in-picture also has limited availability. These sources do not establish mobile cross-app teleprompter parity. [Chrome document PiP](https://developer.chrome.com/docs/web-platform/document-picture-in-picture), [MDN PiP](https://developer.mozilla.org/en-US/docs/Web/API/Picture-in-Picture_API)
 
-## Pocket Prompter implementation status (1.3)
+## Pocket Prompter implementation status (1.4)
 
 The app is published at https://williamob6002-ctrl.github.io/pocket-prompter/. All included functions are free; no subscription, account or paid API is involved.
 
 | Benchmark area | App status | Practical limit |
 |---|---|---|
+| School-project preparation | Four guided project structures arrange supplied notes into editable spoken drafts; time-limit estimates and rehearsal suggestions | Supports the writer's own work; does not invent or validate facts or grade delivery. |
 | Library and document import | Implemented: autosave, search, duplicate, text sharing, JSON backup/restore, TXT/MD/DOC/DOCX/PDF/RTF | Files picker can reach cloud files; this is not live cloud synchronisation. Legacy DOC imports Word 97–2003 main-body text only. GDOC shortcuts explain how to export DOCX/TXT; direct Google-native document access and scanned PDF OCR are not included. |
 | Reading and display | Implemented: speed, font/layout/colour, guide, mirrors, seek, timer, loop, start countdown | Check real-device orientation and comfortable eye line. |
 | Voice assistance | Implemented: actual script-word matching in optional practice mode; local pause-on-silence in recording mode | Speech service varies by browser and may use the network. Sound detection does not follow words or ignore off-script speech. |
 | Recording | Implemented: front/back preferences, quality/FPS preferences, exposed camera controls, microphone meter, pause/resume, optional finish delay | Browser chooses actual supported camera settings; app displays actual dimensions/FPS. Keep app foreground. |
-| Media export | Implemented: video sharing/download, trimmed WAV audio, SRT | Physical Photos, Files and school-submission workflows remain to be checked on the target iPhone. |
+| Media export | Implemented: separate Photos/share and file-download actions, trimmed WAV audio, SRT | User confirmed recording/file download on a phone. Revised Photos sharing and school-submission destinations still require target-device confirmation. |
 | Local video editing | Implemented: trim, crop/size, music, logo, text title, styled captions, green/blue-screen background replacement, frame preview | Runs in real time on device; no multi-track timeline or automatic subject segmentation. Large videos/effects depend on device resources. |
 | Remote controls | Keyboard and clickers that send supported keyboard keys | Apple Watch, hardware volume buttons and proprietary controllers need native integrations. A dedicated network remote is not implemented. |
 | Automatic transcription | Implemented as an optional English-only local model; editable timed captions, offline after explicit ~66 MB download | Tested in desktop Chromium/WebKit. Words/timings can be wrong; child speech, iPhone memory/speed and interruption behavior remain unverified. Source under 100 MB/15 minutes; up to 10 minutes per selection. |
