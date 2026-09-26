@@ -57,13 +57,13 @@ Official implementation evidence:
 - SpeechRecognition has limited browser coverage; some implementations use remote processing and fail offline. [MDN SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
 - Arbitrary HTML picture-in-picture is documented as a desktop Chrome feature; ordinary video picture-in-picture also has limited availability. These sources do not establish mobile cross-app teleprompter parity. [Chrome document PiP](https://developer.chrome.com/docs/web-platform/document-picture-in-picture), [MDN PiP](https://developer.mozilla.org/en-US/docs/Web/API/Picture-in-Picture_API)
 
-## Pocket Prompter implementation status (1.4)
+## Pocket Prompter implementation status (1.5)
 
-The app is published at https://williamob6002-ctrl.github.io/pocket-prompter/. All included functions are free; no subscription, account or paid API is involved.
+The app is published at https://williamob6002-ctrl.github.io/pocket-prompter/. All included functions are free; no subscription, account or paid API is involved. Version 1.5 adds a clear first-use route and progressively disclosed controls while preserving the complete previously implemented feature set; it does not change the remaining paid-app differences below.
 
 | Benchmark area | App status | Practical limit |
 |---|---|---|
-| School-project preparation | Four guided project structures arrange supplied notes into editable spoken drafts; time-limit estimates and rehearsal suggestions | Supports the writer's own work; does not invent or validate facts or grade delivery. |
+| School-project preparation | Four guided project structures ask one question at a time and arrange supplied notes into editable spoken drafts; time-limit estimates and rehearsal suggestions | Supports the writer's own work; does not invent or validate facts or grade delivery. |
 | Library and document import | Implemented: autosave, search, duplicate, text sharing, JSON backup/restore, TXT/MD/DOC/DOCX/PDF/RTF | Files picker can reach cloud files; this is not live cloud synchronisation. Legacy DOC imports Word 97–2003 main-body text only. GDOC shortcuts explain how to export DOCX/TXT; direct Google-native document access and scanned PDF OCR are not included. |
 | Reading and display | Implemented: speed, font/layout/colour, guide, mirrors, seek, timer, loop, start countdown | Check real-device orientation and comfortable eye line. |
 | Voice assistance | Implemented: actual script-word matching in optional practice mode; local pause-on-silence in recording mode | Speech service varies by browser and may use the network. Sound detection does not follow words or ignore off-script speech. |

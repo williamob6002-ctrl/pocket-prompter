@@ -4,16 +4,19 @@ A free teleprompter for iPhone/iPad Home Screen installation, with offline scrip
 
 ## Install and share
 
-Open the published app link in Safari. Choose Share → Add to Home Screen, leave Open as Web App enabled if shown, then Add. Launch that icon once while online and check **Install & help → Ready for offline use**. Install before creating scripts; Safari and the installed app can use separate storage. The **Share app** button shares the public app URL, not scripts or recordings.
+Open the published app link in Safari. Choose Share → Add to Home Screen, leave Open as Web App enabled if shown, then Add. Launch that icon once while online and check **Help → Ready for offline use**. Install before creating scripts; Safari and the installed app can use separate storage. The **Share app** button shares the public app URL, not scripts or recordings.
 
-## Read and record
+## Start here
 
-1. Create a script, import a document, or choose **Turn your ideas into a school script**. Four guided project types arrange your own notes into an editable spoken draft without inventing facts. Scripts save automatically on this device.
-2. Choose **Practise reading** or **Record video**.
-3. Use **Aa / Settings** to set text size, reading width, colours, mirroring, speed and countdown.
-4. In recording mode allow both camera and microphone, then tap **Record**. The scrolling words are not included in the recording.
-5. Pause pauses both the take and the words. Finish saves the take and opens playback. On iPhone, **Save to Photos** opens the system share menu: choose **Save Video** there. The app shares the video alone, in its original format. It cannot choose the destination or silently write to Photos.
-6. Save important recordings in Photos or Files. Browser storage is not a permanent backup.
+1. Choose **Use my own words**. Type/paste a script, open a document, or choose **Help me build a script** for one school-project question at a time. **Try a short example** lets you practise without the camera.
+2. Choose **Read without camera** or **Record a video**. For a video, allow camera and microphone access, then tap **Start recording** and read aloud after the countdown. The scrolling words stay out of your saved video.
+3. Tap **Finish & review**, watch the video, then **Save to Photos → Save Video** in the iPhone share menu. Pause stops both the recording and the words; **Resume recording** continues the same video.
+
+Scripts save on this device automatically. Returning users go straight to their saved script. **Change script** opens the three ways to add new words; **My scripts & import** contains the saved library and document import. **Videos** holds recordings. **Help → Show me how to start** reopens the introduction without deleting your work.
+
+**Text & settings** starts with text size, speed and countdown. Expand the named groups for every other reading, voice, timing and camera control. Open **Edit video, add captions & more** below a recording for all editing/export tools. Version 1.5 reorganises these functions without removing any original feature or saved data.
+
+The app shares the video alone, in its original format. It cannot choose the system share destination or silently write to Photos. Save important recordings outside the app; browser storage is not a permanent backup.
 
 **Download file** is a separate action and saves a file, not a Photos entry. If the share menu is unavailable, the app explains this instead of silently downloading. On iPhone you can open the downloaded video in Files and use Share → Save Video when that action is available. A WebM recording is never relabelled as MP4; Photos compatibility depends on the actual format and device.
 
@@ -23,7 +26,7 @@ Open **Get ready to present** below your script for a time limit, word-count gui
 
 | Area | Included | Boundary |
 |---|---|---|
-| School projects | Guided topic talk, science experiment, book review and argument; editable draft from the writer's own notes; saved unfinished notes; optional time limit and rehearsal tips | Does not generate or verify facts. Unfinished builder notes stay on this device and are not included in script backups; use the draft as a script to include it. Timing is an estimate, not a grade. |
+| School projects | Guided topic talk, science experiment, book review and argument; editable draft from the writer's own notes; one question at a time; saved unfinished notes and question position; optional time limit and rehearsal tips | Does not generate or verify facts. Unfinished builder notes stay on this device and are not included in script backups; use the draft as a script to include it. Timing is an estimate, not a grade. |
 | Scripts | Create, edit, autosave, search, duplicate, delete; bold/highlight cues; word/time estimate; text sharing; backup/restore | Stored on this device; no cloud account or live sync |
 | Import | TXT, MD, DOC, DOCX, text PDF, basic RTF; iCloud/Files documents through the system picker | 15 MB per document; 200 PDF pages; 500,000 characters; Word 97–2003 DOC body text only (no headers, footnotes or text boxes); no OCR; complex layouts may flatten; GDOC shortcuts must be exported as DOCX/TXT |
 | Reading | 40–300 words/min, touch seek, progress, pause/resume, restart, start/finish countdown, loop, timer | Speed is an average based on total script length and layout |
@@ -50,7 +53,7 @@ Open **Get ready to present** below your script for a time limit, word-count gui
 - Voice following is optional and off by default. Enabling it authorizes the browser's speech service, which may process microphone audio remotely. It is disabled during recording.
 - Exported video is camera/microphone media only unless you deliberately apply captions, a picture or music in the editor.
 - Video effects, sound/silence detection and optional automatic captions run locally and do not use the browser speech service.
-- Automatic captions are an optional English-only experiment. Open a take → Trim, captions & extras → Automatic captions → Download caption tools. Then choose the start/end interval and Transcribe selected audio. Review the draft, use Keep captions with this take, and optionally add them to an edited copy. No audio is uploaded.
+- Automatic captions are an optional English-only experiment. Open a video → Edit video, add captions & more → Automatic captions → Download caption tools. Then choose the start/end interval and Transcribe selected audio. Review the draft, use Keep captions with this take, and optionally add them to an edited copy. No audio is uploaded.
 - Caption tools use about 66 MB of optional cached downloads and additional working memory. Keep the app in the foreground; processing and cancellation can pause briefly during a model step. Phone speed, memory use and child-speech accuracy remain unverified. Remove downloaded tools frees that model cache without deleting scripts or takes. [Dependency details and model limits](./asr/README.md).
 - Use only music or pictures you have permission to include in the school project.
 

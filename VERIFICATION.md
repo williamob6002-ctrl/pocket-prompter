@@ -1,6 +1,19 @@
-# Verification — Pocket Prompter 1.4.0
+# Verification — Pocket Prompter 1.5.0
 
 Updated 26 September 2026. This record distinguishes implemented features, tested browser behavior, and target-device work still needed.
+
+## Version 1.5 checks
+
+The user reported that the friend could not understand how to use the shared version. This release simplifies the first-use journey and wording while retaining the implemented feature set. It is the fifth publication under the requested five-rebuild allowance.
+
+- **Clear first use:** new visitors choose their own words or a labelled short practice example. Own words leads to typing/pasting, document import or a guided school script. Empty scripts cannot launch reading/recording. Saved personal scripts bypass the introduction; Help can reopen it without losing work. Untouched old sample scripts remain available and are labelled as examples.
+- **Controls and recording guidance:** the editor leads from words to reading/recording; library/import and preparation tools remain accessible in named sections. Text/settings starts with size, speed and countdown, with every original advanced control retained. Camera mode gives an explicit Start recording action and contextual preview, countdown, recording and pause instructions. Video review puts playback and saving before editing extras. A keyboard-triggered camera preview retains a visible pause control.
+- **Independent feature preservation:** all 132 pre-release element IDs and all 23 original settings remain, with original options and limits. Runtime checks passed 14 cases in each of Chromium and WebKit: fresh/returning users, practice without camera requests, library/import, exact legacy scripts/settings/time-limit preservation, guidance, advanced settings persistence, text export, backups, stored-video review, editing/caption/export access and canonical files-only MP4 sharing. Structural counts alone are not treated as usability evidence.
+- **One-question school builder:** 15 workflow/failure cases passed in each browser across all four project types. Checks covered required/optional answers, Enter/Back/Skip navigation, close/reload step recovery, old-draft compatibility, supplied-fact preservation, literal HTML safety, revise/create/reload, separate scripts, and truthful storage-failure messages.
+- **Visual checks:** Chromium and WebKit journeys were inspected at 390×844, 320×568 and 844×390, plus desktop WebKit at 1280×900. No horizontal overflow or out-of-screen reader controls was observed. Reader buttons are at least 48 px, inputs at least 16 px. A WebKit select-height issue was corrected. One-question builder navigation fits the small portrait views. Physical iPhone keyboard/safe-area behavior remains a device check.
+- **Recording regression:** the final UI completed camera preparation → keyboard scrolling preview → pause/restart → record → pause/resume → finish → download → reload/reopen/play in Chromium and WebKit. Generated moving video and an audio tone produced playable MP4s of 3.70 and 3.71 seconds with no application JavaScript errors. These are synthetic capture checks, not new physical-camera evidence.
+- **Offline regression:** after the origin refused all HTTP, both engines reloaded the fresh introduction and completed all four one-question project types. Required-empty errors, optional skips, closing/reloading/resuming, revise/use, separate notes and two-minute targets passed. Final offline reload retained all generated scripts and original data. No page errors or successful HTTP responses occurred after disconnection; WebKit service-worker update attempts were refused. The release retains 224 mandatory offline assets.
+- **Scope boundary:** this release does not remove video editing, caption tools, imports, voice options, backup/restore or camera preferences. Physical iPhone simplicity still needs the friend's own hands-on check. Recording/file download has prior user confirmation; the revised native Photos destination remains unconfirmed.
 
 ## Version 1.4 checks
 
@@ -16,7 +29,7 @@ User feedback confirmed that a phone recording worked and downloaded as a file. 
 
 ## Earlier test-build handoff
 
-Versions 1.2 and 1.3 were the first two functional releases after the request to finish within five rebuilds. A third publication updated documentation and its offline cache only. Version 1.4 is the fourth publication in that allowance, responding to the user's real-device feedback.
+Versions 1.2 and 1.3 were the first two functional releases after the request to finish within five rebuilds. A third publication updated documentation and its offline cache only. Version 1.4 was the fourth publication in that allowance, responding to the user's real-device feedback. Version 1.5 is the fifth and focuses on first-use clarity.
 
 The published 1.3 files matched the release commit by SHA-256. A fresh desktop WebKit journey on the public URL downloaded the optional caption pack, transcribed actual speech from an MP4, and saved/reopened the captions. No application JavaScript errors, off-origin model requests or audio uploads were observed.
 
@@ -104,4 +117,4 @@ Version 1.1 bundles 210 offline assets, including the new processing modules and
 
 ## Published delivery
 
-The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.4 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.
+The public app is https://williamob6002-ctrl.github.io/pocket-prompter/, served by GitHub Pages from the main branch over enforced HTTPS. Source: https://github.com/williamob6002-ctrl/pocket-prompter. Version 1.5 updates install through the service worker: close every open app/Safari window for this site and reopen after an update is ready. Existing scripts and takes keep the same storage keys; no migration deletes them.

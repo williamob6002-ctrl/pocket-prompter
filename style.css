@@ -351,3 +351,108 @@ dialog::backdrop { background: #0b214b8a; backdrop-filter: blur(5px); }
 .video-editor textarea { font-size: 1rem; }
 #coach-summary { display: inline-block; margin-left: 8px; }
 @media (max-width: 359px) { #coach-summary { display: block; margin: 5px 0 0 17px; } }
+
+/* First use: one clear route from words to a saved video. */
+.welcome-panel {
+  max-width: 660px;
+  margin: 22px auto 0;
+  padding: 36px;
+  background: #fff;
+  border: 1px solid #cadbf2;
+  border-radius: 24px;
+  box-shadow: 0 12px 36px #193a6710;
+}
+.welcome-panel h1 { max-width: 16ch; font-size: clamp(2rem, 5vw, 2.7rem); margin-bottom: 18px; line-height: 1.15; }
+.welcome-panel p { max-width: 43ch; font-size: 1.06rem; color: #415b80; line-height: 1.65; margin-bottom: 24px; }
+.welcome-panel .button-row { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.welcome-panel #start-own-script, .welcome-panel #try-example { display: block; width: 100%; min-height: 56px; margin-top: 12px; font-size: 1rem; }
+.welcome-panel .button-row #start-own-script, .welcome-panel .button-row #try-example { margin-top: 0; }
+#continue-script { display: block; margin: 12px auto 0; color: #36557d; }
+#script-workflow { max-width: 820px; margin-inline: auto; }
+.workflow-steps { display: flex; align-items: flex-start; list-style: none; gap: 12px; padding: 0; margin: 12px 0 24px; counter-reset: workflow; }
+.workflow-steps li { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; color: #496388; font-size: .86rem; line-height: 1.35; counter-increment: workflow; }
+.workflow-steps li::before { content: counter(workflow); display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; background: #dce8ff; color: #254f9d; font-weight: 750; }
+.workflow-steps li[aria-current="step"] { color: #173d96; font-weight: 650; }
+.workflow-steps li[aria-current="step"]::before { background: var(--blue); color: white; }
+#script-workflow .writing-room { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+#script-workflow .page-title { margin: 14px 0 20px; }
+#script-workflow .page-title h1 { font-size: 2rem; }
+#script-workflow #new-script { font-size: .87rem; min-width: 108px; }
+.library-tools { background: #f8faff; border: 1px solid #c9d8ed; border-radius: 13px; min-width: 0; }
+.library-tools > summary { cursor: pointer; min-height: 52px; padding: 16px 18px; color: #36577f; font-weight: 650; font-size: .94rem; }
+.library-tools > .library { padding: 2px 16px 16px; }
+.library-tools .library #script-list { max-height: 200px; }
+.editor > label:not(.sr-only) { display: block; margin: 4px 0 3px; font-size: .94rem; font-weight: 650; color: #3c577d; }
+.start-dialog { max-width: min(94vw, 580px); }
+.start-dialog .start-choice { display: block; width: 100%; min-height: 76px; text-align: left; padding: 16px 18px; margin: 12px 0; border: 1px solid #bfcfe7; border-radius: 13px; background: #f2f6fd; color: #254b83; }
+.start-choice b, .start-choice strong { display: block; font-size: 1rem; line-height: 1.35; margin-bottom: 4px; }
+.start-choice span { display: block; font-weight: 400; color: #4b6487; font-size: .88rem; line-height: 1.45; }
+.start-dialog .project-start { box-shadow: none; }
+.settings-advanced { border-top: 1px solid #d7e1f0; margin-top: 8px; }
+.settings-advanced > summary { cursor: pointer; min-height: 56px; padding: 18px 2px; font-weight: 650; font-size: .95rem; color: #36577f; }
+.settings-advanced[open] > summary { padding-bottom: 12px; }
+.settings-advanced fieldset { padding-top: 14px; }
+.reader-instruction { flex-shrink: 0; margin: 0; padding: 10px 16px; color: #e0ebff; background: #10223c; border-bottom: 1px solid #33506f; font-size: .87rem; line-height: 1.45; text-align: center; }
+.take-step { margin: 0 0 14px; color: #2855ad; font-size: .91rem; font-weight: 700; line-height: 1.45; }
+.builder-question-nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 6px; }
+.builder-question-nav button { min-height: 52px; flex: 1 1 110px; }
+#project-step-status { color: #2f5892; font-size: .88rem; font-weight: 650; margin: 18px 0 8px; }
+#project-question-hint { color: #536681; font-size: .91rem; line-height: 1.6; margin-bottom: 14px; }
+#project-fields textarea { scroll-margin-top: 110px; }
+@media (max-width: 760px) {
+  .welcome-panel { margin-top: 14px; padding: 24px; border-radius: 20px; }
+  .welcome-panel h1 { font-size: 2rem; margin-bottom: 16px; }
+  .welcome-panel p { font-size: 1rem; margin-bottom: 20px; }
+  .workflow-steps { gap: 8px; margin: 8px 0 18px; }
+  .workflow-steps li { gap: 6px; font-size: .77rem; }
+  .workflow-steps li::before { width: 24px; height: 24px; font-size: .8rem; }
+  .library-tools > .library { padding: 0 12px 12px; }
+  .library-tools > summary { padding-inline: 15px; }
+  .library-tools .library #script-list { max-height: 96px; }
+  .reader-instruction { padding: 9px 12px; font-size: .8rem; }
+  .start-dialog { max-width: calc(100vw - 24px); padding: 20px; border-radius: 20px; }
+  .start-dialog .start-choice { padding: 15px; }
+  .builder-question-nav button { font-size: .94rem; }
+}
+@media (max-width: 359px) {
+  .welcome-panel { padding: 20px; }
+  .welcome-panel h1 { font-size: 1.75rem; }
+  .welcome-panel #start-own-script, .welcome-panel #try-example { min-height: 52px; }
+  #script-workflow .page-title h1 { font-size: 1.75rem; }
+  .workflow-steps li { align-items: flex-start; font-size: .73rem; }
+  .workflow-steps li::before { width: 22px; height: 22px; }
+  .reader-instruction { font-size: .77rem; padding: 8px 10px; }
+  .start-dialog { padding: 18px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .welcome-panel { margin-top: 10px; padding: 24px; }
+  .welcome-panel h1 { max-width: none; font-size: 1.9rem; }
+  .reader-instruction { padding: 5px 12px; font-size: .77rem; }
+  #reader.camera-mode #reading-window { max-height: calc(100% - 205px); }
+  #mic-monitor { top: 90px; }
+  .start-dialog { max-height: 94dvh; }
+}
+.welcome-panel p.hint { font-size: .84rem; line-height: 1.5; margin: 18px 0 0; }
+#editor-next-note { margin: 12px 0 4px; }
+/* Use a consistent, finger-sized select while keeping the native choice menu. */
+.settings-content select, .video-editor select, .coach-content select, #project-dialog select {
+  appearance: none; -webkit-appearance: none;
+  height: 48px; min-height: 48px; padding: 10px 38px 10px 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23496388' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;
+}
+@media (max-width: 760px) {
+  #script-workflow .editor textarea { height: clamp(150px, calc(100dvh - 700px), 260px); min-height: 150px; }
+}
+@media (max-width: 359px) {
+  .welcome-panel h1 { margin-bottom: 12px; }
+  .welcome-panel > p:not(.hint) { font-size: .94rem; line-height: 1.55; }
+}
+@media (max-width: 760px) {
+  #script-workflow .editor #script-title { min-height: 48px; }
+  #script-workflow .editor-footer { min-height: 48px; }
+  #script-workflow .editor .launch-actions { margin-top: 4px; }
+}
+@media (max-height: 640px) and (max-width: 760px) {
+  #project-fields textarea { height: 120px; min-height: 120px; }
+}

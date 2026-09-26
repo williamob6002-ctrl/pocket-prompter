@@ -13,6 +13,8 @@ const $$ = selector => [...document.querySelectorAll(selector)];
 const STORE = 'pocket-prompter-v1';
 const defaults = {wpm:130,fontSize:40,lineHeight:1.6,width:90,font:'system',align:'left',theme:'dark',guide:true,mirrorX:false,mirrorY:false,countdown:3,finishDelay:0,frameRate:30,pauseOnSilence:false,silenceThreshold:-42,silenceDelay:1200,loop:false,keepAwake:true,voice:false,language:'en-GB',facing:'user',quality:'1080',panelHeight:60,opacity:70};
 const sample = `Hello! Today I’m going to explain the water cycle.\n\nThe water on our planet is always moving. It travels between the sea, the sky and the land. This journey is called the **water cycle**.\n\nFirst, the sun warms the water in rivers, lakes and oceans. Some of that water turns into water vapour and rises into the air. This is called ==evaporation==.\n\nHigh in the sky, the air is cooler. The water vapour turns into tiny droplets that gather together to form clouds. This is called condensation.\n\nWhen the droplets get heavy enough, they fall as rain, snow or hail. We call this precipitation.\n\nThe water collects in rivers and oceans, and the whole journey begins again.\n\nThank you for listening!`;
+const demoTitle='Practice example';
+const demoText='Hello! This is a short practice script.\n\nI can read at my own pace and pause whenever I need to. I do not have to get every word perfect.\n\nWhen I feel ready, I can use my own words and record a video.';
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const wordCount = text => (plainText(text).match(/\S+/gu)||[]).length;
 const plainText = text => text.replace(/\*\*|==/g,'');
@@ -22,12 +24,12 @@ const wait = ms => new Promise(r=>setTimeout(r,ms));
 let data, storageError, activeView='scripts', toastTimer;
 try { const stored=localStorage.getItem(STORE); data=stored ? JSON.parse(stored) : null; if(data && (!Array.isArray(data.scripts)||data.scripts.some(s=>typeof s.text!=='string'||typeof s.title!=='string'||typeof s.id!=='string'))) throw new Error('Unrecognised script data'); }
 catch(e) { storageError=e; data=null; }
-if(!data) {const id=uid();data={version:1,activeId:id,settings:{...defaults},scripts:[{id,title:'The water cycle',text:sample,updated:Date.now()}]};}
+if(!data) {const id=uid();data={version:1,activeId:id,settings:{...defaults},scripts:[{id,title:'Untitled script',text:'',updated:Date.now()}]};}
 data.settings={...defaults,...data.settings};
 let settings=data.settings;
 let current=data.scripts.find(s=>s.id===data.activeId)||data.scripts[0];
 if(!current){current={id:uid(),title:'My first script',text:'',updated:Date.now()};data.scripts.push(current);data.activeId=current.id;}
-let readerOpen=false,cameraMode=false,playing=false,pendingStart=false,countdownToken=0;
+let readerOpen=false,cameraMode=false,previewOnly=false,playing=false,pendingStart=false,countdownToken=0;
 let stream=null,recorder=null,recordInfo=null,chunkQueue=Promise.resolve(),recordChunks=[],recordStorageError=null,chunkIndex=0;
 let recordingStarting=false,recordSegmentActive=false;
 function accumulateRecording(){if(recordSegmentActive){recordAccum+=(performance.now()-recordStarted)/1000;recordSegmentActive=false;}}
@@ -56,7 +58,7 @@ function save(){
   try{localStorage.setItem(STORE,JSON.stringify(data));$('#save-state').textContent='Saved on this device';return true;}
   catch(e){$('#save-state').textContent='Not saved — device storage is full or unavailable';return false;}
 }
-function stats(){const words=wordCount(current.text);$('#script-stats').textContent=`${words} words · about ${clock(Math.ceil(words/settings.wpm*60))}`;$('#read-script').disabled=!words;$('#record-script').disabled=!words;updateCoach();}
+function stats(){const words=wordCount(current.text);$('#script-stats').textContent=`${words} words · about ${clock(Math.ceil(words/settings.wpm*60))}`;$('#read-script').disabled=!words;$('#record-script').disabled=!words;$('#editor-next-note').textContent=words?'Ready? Read your words or record a video.':'Add your words above first. Then these two buttons will be ready.';$('#script-example-note').hidden=!((current.title==='The water cycle'&&current.text===sample)||(current.title===demoTitle&&current.text===demoText));updateCoach();}
 function updateCoach(){
   const target=[60,120,180,300].includes(current.targetSeconds)?current.targetSeconds:0;
   $('#target-duration').value=String(target);
@@ -74,12 +76,33 @@ function renderLibrary(){
   if(!matches.length){const p=document.createElement('p');p.className='hint';p.textContent='No matching scripts.';list.append(p);}
 }
 function selectScript(id){current=data.scripts.find(s=>s.id===id);data.activeId=id;$('#script-title').value=current.title;$('#script-text').value=current.text;stats();renderLibrary();save();}
-function newScript(title='Untitled script',text='',targetSeconds=0){const script={id:uid(),title,text,updated:Date.now(),targetSeconds:[60,120,180,300].includes(targetSeconds)?targetSeconds:0};data.scripts.unshift(script);$('#search').value='';selectScript(script.id);showView('scripts');if(!text)$('#script-title').focus();return script;}
+function newScript(title='Untitled script',text='',targetSeconds=0){const script={id:uid(),title,text,updated:Date.now(),targetSeconds:[60,120,180,300].includes(targetSeconds)?targetSeconds:0};data.scripts.unshift(script);$('#search').value='';selectScript(script.id);showEditor();if(!text)$('#script-text').focus();return script;}
 async function showView(view){activeView=view;for(const section of $$('.view'))section.hidden=section.id!==`${view}-view`;for(const b of $$('.bottom-nav button')){if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}if(view==='takes')await renderTakes();window.scrollTo(0,0);}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function shareFile(blob,name,title){const file=new File([blob],name,{type:blob.type});if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title});return true;}download(blob,name);return false;}
 
-$('#new-script').onclick=()=>newScript();
+function showEditor(){
+  data.introDone=true;$('#welcome-panel').hidden=true;$('#script-workflow').hidden=false;showView('scripts');save();
+}
+function showWelcome(){
+  $('#welcome-panel').hidden=false;$('#script-workflow').hidden=true;$('#continue-script').hidden=!data.scripts.some(s=>s.text.trim());showView('scripts');
+}
+function chooseScript(){$('#start-dialog').showModal();}
+$('#new-script').onclick=chooseScript;
+$('#start-own-script').onclick=chooseScript;
+$('#start-blank').onclick=()=>{
+  $('#start-dialog').close();
+  if(!current.text.trim()&&current.title==='Untitled script'){showEditor();$('#script-text').focus();}
+  else newScript();
+};
+$('#start-import').onclick=()=>{$('#start-dialog').close();$('#import-script').click();};
+$('#try-example').onclick=()=>{
+  const existing=data.scripts.find(s=>s.title===demoTitle&&s.text===demoText);
+  if(existing){selectScript(existing.id);showEditor();}else newScript(demoTitle,demoText);
+  openReader(false);
+};
+$('#continue-script').onclick=showEditor;
+$('#show-start-guide').onclick=showWelcome;
 $('#search').oninput=renderLibrary;
 $('#script-title').oninput=e=>{current.title=e.target.value;current.updated=Date.now();save();renderLibrary();};
 $('#script-text').oninput=e=>{current.text=e.target.value;current.updated=Date.now();save();stats();renderLibrary();};
@@ -127,8 +150,8 @@ function applySettings(){
   for(const input of $$('[data-setting]')){const value=settings[input.dataset.setting];if(input.type==='checkbox')input.checked=value;else input.value=String(value);}
   $('#silence-threshold-output').textContent=`${settings.silenceThreshold} dB`;
   $('[data-setting="pauseOnSilence"]').disabled=!cameraMode||!AudioMonitor.supported();
-  $('#mic-monitor').hidden=!cameraMode;
-  $('#font-size-output').textContent=`${settings.fontSize}px`;$('#width-output').textContent=`${settings.width}%`;$('#camera-preview').style.transform=settings.facing==='user'?'scaleX(-1)':'';
+  $('#mic-monitor').hidden=!cameraMode;$('#camera-options').hidden=!cameraMode;$('#preview-words-only').hidden=!cameraMode||!!recorder&&recorder.state!=='inactive';
+  $('#font-size-output').textContent=`${settings.fontSize}px`;$('#setting-speed-output').textContent=`${settings.wpm}`;$('#width-output').textContent=`${settings.width}%`;$('#camera-preview').style.transform=settings.facing==='user'?'scaleX(-1)':'';
   const height=$('#prompt-scroll').clientHeight;$('#prompt-text').style.setProperty('--lead-in',`${height*.24}px`);$('#prompt-text').style.setProperty('--lead-out',`${height*.76}px`);
   const supported=!!(window.SpeechRecognition||window.webkitSpeechRecognition);$('[data-setting="voice"]').disabled=!supported||cameraMode;
   if(!supported)$('#voice-help').textContent='Voice following is unavailable in this browser. Fixed-speed reading works offline.';
@@ -146,6 +169,7 @@ for(const input of $$('[data-setting]'))input.oninput=async()=>{
   if(cameraMode&&['facing','quality','frameRate'].includes(key)&&(!recorder||recorder.state==='inactive'))await startCamera();
 };
 $('#reader-settings').onclick=()=>{pause();applySettings();$('#settings-dialog').showModal();};
+$('#preview-words-only').onclick=()=>{$('#settings-dialog').close();previewOnly=true;play();};
 function setSpeed(wpm){settings.wpm=Math.min(300,Math.max(40,wpm));save();applySettings();stats();}
 $('#quick-speed').oninput=e=>setSpeed(Number(e.target.value));$('#slower').onclick=()=>setSpeed(settings.wpm-5);$('#faster').onclick=()=>setSpeed(settings.wpm+5);
 
@@ -169,7 +193,7 @@ $('#prompt-scroll').addEventListener('wheel',()=>pause(),{passive:true});
 $('#prompt-scroll').addEventListener('scroll',()=>{if(!playing)scrollPosition=$('#prompt-scroll').scrollTop;updatePosition();},{passive:true});
 $('#read-script').onclick=()=>openReader(false);$('#record-script').onclick=()=>openReader(true);
 async function openReader(camera){
-  save();cameraMode=camera;readerOpen=true;if(camera)audioMonitor.prepare();sessionElapsed=0;$('#workspace').hidden=true;$('#reader').hidden=false;$('#reader').classList.toggle('camera-mode',camera);document.body.classList.add('reading');$('#record-toggle').hidden=!camera;$('#finish-recording').hidden=true;$('#camera-message').hidden=true;$('#session-status').textContent=camera?'Opening camera…':'Ready';$('#elapsed').textContent='0:00';$('#record-toggle').disabled=camera;renderPrompt();applySettings();setProgress(0);updateButtons();
+  save();cameraMode=camera;previewOnly=false;readerOpen=true;if(camera)audioMonitor.prepare();sessionElapsed=0;$('#workspace').hidden=true;$('#reader').hidden=false;$('#reader').classList.toggle('camera-mode',camera);document.body.classList.add('reading');$('#record-toggle').hidden=!camera;$('#finish-recording').hidden=true;$('#camera-message').hidden=true;$('#session-status').textContent=camera?'Opening camera…':'Ready';$('#elapsed').textContent='0:00';$('#record-toggle').disabled=camera;renderPrompt();applySettings();setProgress(0);updateButtons();
   if(camera)await startCamera();else if(settings.keepAwake)await keepAwake();
 }
 function stopCamera(keepMonitor=false){cameraRequest++;if(!keepMonitor){audioMonitor.stop();monitorReady=false;soundDetected=false;}if(stream){for(const track of stream.getTracks())track.stop();stream=null;}$('#camera-preview').srcObject=null;}
@@ -179,9 +203,9 @@ async function startCamera(){
   try{
     const shortSide=Number(settings.quality),portrait=window.innerHeight>window.innerWidth;const newStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:settings.facing},width:{ideal:portrait?shortSide:Math.round(shortSide*16/9)},height:{ideal:portrait?Math.round(shortSide*16/9):shortSide},aspectRatio:{ideal:portrait?9/16:16/9},frameRate:{ideal:settings.frameRate}},audio:{echoCancellation:true,noiseSuppression:true}});
     if(!readerOpen||!cameraMode||request!==cameraRequest){newStream.getTracks().forEach(t=>t.stop());return;}
-    stream=newStream;audioMonitor.start(stream,{thresholdDb:settings.silenceThreshold,silenceMs:settings.silenceDelay});$('#camera-preview').srcObject=stream;await $('#camera-preview').play();$('#record-toggle').disabled=false;const actual=stream.getVideoTracks()[0]?.getSettings();$('#session-status').textContent=`Camera ready${actual?.height?` · ${actual.width}×${actual.height}${actual.frameRate?` · ${Math.round(actual.frameRate)} fps`:''}`:''}`;
+    stream=newStream;audioMonitor.start(stream,{thresholdDb:settings.silenceThreshold,silenceMs:settings.silenceDelay});$('#camera-preview').srcObject=stream;await $('#camera-preview').play();$('#record-toggle').disabled=false;const actual=stream.getVideoTracks()[0]?.getSettings();$('#session-status').textContent='Ready to record';$('#camera-actual').textContent=actual?.height?`Current camera: ${actual.width}×${actual.height}${actual.frameRate?` at ${Math.round(actual.frameRate)} fps`:''}.`:'Camera settings depend on this device.';
     for(const track of stream.getTracks())track.onended=()=>{if(recorder&&recorder.state!=='inactive')finishRecording('Camera interrupted');else{$('#record-toggle').disabled=true;$('#session-status').textContent='Camera stopped — close and reopen';}};
-    renderDeviceCameraControls();applySettings();if(settings.keepAwake)await keepAwake();
+    renderDeviceCameraControls();updateButtons();applySettings();if(settings.keepAwake)await keepAwake();
   }catch(e){if(request!==cameraRequest)return;audioMonitor.stop();const denied=['NotAllowedError','PermissionDeniedError'].includes(e.name);$('#camera-message').textContent=denied?'Camera or microphone access was denied. Allow both in Safari’s website settings, then close and reopen the recording screen. Your script is safe.':'The camera could not start. Close other camera apps, check that a microphone is available, then try again.';$('#camera-message').hidden=false;$('#session-status').textContent=denied?'Permission needed':'Camera unavailable';}
 }
 function renderDeviceCameraControls(){
@@ -192,11 +216,19 @@ function renderDeviceCameraControls(){
 }
 function wordAtGuide(){const target=$('#prompt-scroll').scrollTop+$('#prompt-scroll').clientHeight*.24;const words=$$('#prompt-text [data-word]');let candidate=0;for(const word of words){if(word.offsetTop>target+2)break;candidate=Number(word.dataset.word);}const line=words[candidate]?.offsetTop;while(candidate>0&&words[candidate-1].offsetTop===line)candidate--;return candidate;}
 function ensureMonitor(){if(!stream)return false;return audioMonitor.running?audioMonitor.resume():audioMonitor.start(stream,{thresholdDb:settings.silenceThreshold,silenceMs:settings.silenceDelay});}
-function updateButtons(){const recording=recorder&&recorder.state!=='inactive';$('#play-reader').textContent=pendingStart?'Cancel countdown':(playing||finishAt)?'Ⅱ Pause':recording?'▶ Resume':cameraMode?'▶ Preview words':'▶ Read';$('#record-toggle').hidden=!cameraMode||!!recording;$('#finish-recording').hidden=!recording;$('#restart-reader').disabled=!!recording||recordingStarting;$('#record-toggle').disabled=recordingStarting||!stream;$('#play-reader').disabled=recordingStarting&&!pendingStart;}
+function updateButtons(){
+  const recording=recorder&&recorder.state!=='inactive';
+  $('#play-reader').textContent=pendingStart?'Cancel countdown':(playing||finishAt)?'Ⅱ Pause':recording?'▶ Resume recording':cameraMode?'▶ Preview scrolling':'▶ Start scrolling';
+  $('#play-reader').hidden=cameraMode&&!recording&&!pendingStart&&!previewOnly;
+  $('#record-toggle').hidden=!cameraMode||!!recording;$('#finish-recording').hidden=!recording;
+  $('#restart-reader').disabled=!!recording||recordingStarting;$('#record-toggle').disabled=recordingStarting||!stream;$('#play-reader').disabled=recordingStarting&&!pendingStart;
+  $('#reader-instruction').textContent=recording?(recorder.state==='paused'?'Your video is paused. Resume when ready, or finish to review it.':'Recording now. Read aloud, then tap Finish & review when you’re done.'):pendingStart?'Get ready to read aloud. You can cancel the countdown.':cameraMode?(previewOnly?'This is a scrolling preview, not a recording. Tap Start recording to make your video.':stream?'You are not recording yet. Tap Start recording, then read the words aloud.':'Allow camera and microphone access to record. Your words will not appear in the saved video.'):(playing?'Read the words aloud. Pause whenever you need to, or use − to slow down.':'No camera is being used. Tap Start scrolling, then read the words aloud.');
+}
 function pause(){finishAt=0;countdownToken++;pendingStart=false;$('#countdown-overlay').hidden=true;playing=false;lastFrame=0;voiceFollower?.stop();voiceFollower=null;if(recorder?.state==='recording'){accumulateRecording();recorder.pause();$('#session-status').textContent='Take paused';}else if(readerOpen&&(!recorder||recorder.state==='inactive'))$('#session-status').textContent='Paused';updateButtons();}
 async function countIn(){const token=++countdownToken;pendingStart=true;updateButtons();for(let n=settings.countdown;n>0;n--){$('#countdown-overlay').textContent=n;$('#countdown-overlay').hidden=false;await wait(1000);if(token!==countdownToken||!readerOpen)return false;}$('#countdown-overlay').hidden=true;pendingStart=false;updateButtons();return token===countdownToken&&readerOpen;}
 async function play(){
   if(finishAt||pendingStart||playing){pause();return;}
+  if(cameraMode&&(!recorder||recorder.state==='inactive'))previewOnly=true;
   if(cameraMode&&!ensureMonitor()&&settings.pauseOnSilence){message('Sound assistance unavailable','Turn off Pause words during silence in Reading settings to continue with fixed-speed scrolling. Your recording can still be saved.');return;}
   if(progress()>=.999)setProgress(0);
   if(settings.voice&&!cameraMode){try{voiceFollower=new VoiceFollower({text:plainText(current.text),language:settings.language,onPosition:index=>{const word=$(`[data-word="${index}"]`);if(word){scrollPosition=Math.max(0,word.offsetTop-$('#prompt-scroll').clientHeight*.24);$('#prompt-scroll').scrollTop=scrollPosition;updatePosition();}},onStatus:status=>{$('#session-status').textContent=status;if(status==='End of script.'||status==='No script remains to read.'){playing=false;lastFrame=0;updateButtons();}},onError:error=>{pause();message('Voice following stopped',`${error.message||error}\nYou can turn off voice following in settings and use fixed-speed reading.`);}});if(!voiceFollower.start(wordAtGuide())){playing=false;voiceFollower=null;updateButtons();return;}}catch(e){message('Voice following unavailable',e.message);return;}}
@@ -264,8 +296,8 @@ window.addEventListener('beforeunload',e=>{if(recorder&&recorder.state!=='inacti
 
 async function renderTakes(){
   const container=$('#takes-list');container.replaceChildren();
-  try{const takes=await listTakes();if(!takes.length){const p=document.createElement('p');p.className='empty-state';p.textContent='Your recordings will appear here. Open a script and choose Record video.';container.append(p);return;}
-    for(const take of takes){const card=document.createElement('article');card.className='take-card';const h=document.createElement('h2');h.textContent=take.title;const p=document.createElement('p');p.textContent=`${new Date(take.created).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})} · ${take.status==='recording'?'Interrupted take':clock(take.duration)}`;const b=document.createElement('button');b.className='outline';b.textContent='Review take';b.onclick=()=>openTake(take);const remove=document.createElement('button');remove.className='text-button danger';remove.textContent='Delete';remove.onclick=async()=>{if(confirm('Delete this take?')){await deleteTake(take.id);renderTakes();}};const row=document.createElement('div');row.className='button-row';row.append(b,remove);card.append(h,p,row);container.append(card);}
+  try{const takes=await listTakes();if(!takes.length){const p=document.createElement('p');p.className='empty-state';p.textContent='Your videos will appear here. Open Script, add your words, then choose Record a video.';container.append(p);return;}
+    for(const take of takes){const card=document.createElement('article');card.className='take-card';const h=document.createElement('h2');h.textContent=take.title;const p=document.createElement('p');p.textContent=`${new Date(take.created).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})} · ${take.status==='recording'?'Interrupted take':clock(take.duration)}`;const b=document.createElement('button');b.className='outline';b.textContent='Watch & save';b.onclick=()=>openTake(take);const remove=document.createElement('button');remove.className='text-button danger';remove.textContent='Delete';remove.onclick=async()=>{if(confirm('Delete this take?')){await deleteTake(take.id);renderTakes();}};const row=document.createElement('div');row.className='button-row';row.append(b,remove);card.append(h,p,row);container.append(card);}
   }catch{const p=document.createElement('p');p.className='notice';p.textContent='Recordings storage is unavailable. Check available device storage and use normal browsing, rather than private browsing.';container.append(p);}
 }
 async function openTake(take,blob){
@@ -391,5 +423,8 @@ async function setupOffline(){
   catch{$('#offline-state').textContent='Offline download did not finish. Reopen while online to try again.';}
 }
 setupProjectBuilder({onUse:draft=>{newScript(draft.title,draft.text);toast('Your script is ready. Make it sound like you, then practise.');},getWpm:()=>settings.wpm});
-selectScript(current.id);setupOffline();
+selectScript(current.id);
+const hasPersonalScript=data.scripts.some(s=>s.text.trim()&&!(s.title==='The water cycle'&&s.text===sample)&&!(s.title===demoTitle&&s.text===demoText));
+if(data.introDone||hasPersonalScript)showEditor();else showWelcome();
+setupOffline();
 if(storageError)message('Saved scripts need attention','The stored script library could not be read. Existing storage has not been overwritten. Back up any recovered text before clearing website data.');
