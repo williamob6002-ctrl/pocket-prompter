@@ -1,6 +1,19 @@
 # Verification — Pocket Prompter 1.3.0
 
-Checked 25 September 2026. This record distinguishes implemented features, tested browser behavior, and target-device work still needed.
+Updated 26 September 2026. This record distinguishes implemented features, tested browser behavior, and target-device work still needed.
+
+## Test-build handoff
+
+Version 1.3 is the current test build. Versions 1.2 and 1.3 are the two functional releases made after the request to finish within five rebuilds. The final handoff updates documentation and its offline cache only; it adds no experimental feature or model download.
+
+The published 1.3 files matched the release commit by SHA-256. A fresh desktop WebKit journey on the public URL downloaded the optional caption pack, transcribed actual speech from an MP4, and saved/reopened the captions. No application JavaScript errors, off-origin model requests or audio uploads were observed.
+
+Further feature expansion is deferred until the target iPhone/iPad has been tested. The remaining phone checks below are unresolved; the delivered app is ready for that test, not claimed to have complete paid-app parity.
+
+### Additional feasibility checks
+
+- **Local AI writing:** the pinned SmolLM2-135M-Instruct ONNX candidate (revision `b8a5c0f183b78c55955a5364f610c36668b5e681`, 135,658,354-byte quantized weights) loaded and generated text in isolated Chromium. All three supplied-fact school-script cases failed quality: science output invented causality and omitted facts; a book review changed a family member and invented plot details; a recycling appeal repeated an instruction into the spoken output. It is excluded from the app. This rejects that candidate, not every possible local writing model. Larger-model phone memory, speed and usefulness remain unverified.
+- **Network remote:** isolated WebRTC trials in Chromium and WebKit, including cross-browser and same-page controls, exchanged offers/answers but never established a data channel in this environment. Host candidates and a free STUN service were tried. This does not establish an iPhone platform prohibition. A dedicated remote remains unimplemented pending a successful real two-device connection and command/reconnection checks. Existing keyboard controls are unaffected.
 
 ## Version 1.3 checks
 
@@ -18,7 +31,7 @@ Checked 25 September 2026. This record distinguishes implemented features, teste
 - Legacy Word DOC importer: 36 checks passed in each browser through file input, isolated worker and rendered output. Three freshly generated Word 97–2003 documents preserve exact source body text, including multilingual text and 1,000 paragraphs. Twenty-one real Word fixtures produced readable text; this is not a full-fidelity claim. Nine malformed/unsupported variants fail clearly and a later valid import recovers. GDOC shortcuts give an export instruction; RTF with a DOC extension works.
 - Final integrated DOC acceptance passed in both engines through the app file chooser: valid import, GDOC guidance, malformed input preserving the current script, successful retry and reload persistence. The same sequence passed after the origin HTTP server was stopped and confirmed unavailable. All 214 cached asset hashes matched the release files in both engines.
 - The release adds four local offline dependencies for DOC extraction. Word 6/95, encrypted documents and unsupported complex files receive a DOCX/TXT fallback; headers, footnotes, text boxes and page layout are outside the supported DOC scope.
-- This is the final bounded test build. Automatic transcription, additional AI models and dedicated network remotes are deferred; they are not represented as implemented or impossible on the web.
+- At version 1.2, automatic transcription, additional AI models and dedicated network remotes were deferred. Version 1.3 subsequently added optional English transcription; the other items remain deferred.
 
 ## Version 1.1 checks
 
